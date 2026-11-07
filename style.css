@@ -1468,3 +1468,18 @@ body .app-grid {
 /* v2.8: shade and cut-sheet hatch select in live gypsum overlay */
 #boardDisplayMode { border-color:#8062a5; }
 #rigidCeilingOptions .field-row > label { min-width:0; }
+
+/* ATLAS v2.9 — independent Bluebeam-style temporary tape measure. */
+.tape-mode-button.active-tool { background: #e7b95c !important; border-color: #e7b95c !important; color: #1b1608 !important; font-weight: 800; }
+#canvasWrap .tape-readout[hidden] { display: none !important; }
+.tape-readout { position:absolute;z-index:12;right:12px;bottom:12px;min-width:200px;max-width:min(310px,calc(100% - 24px));padding:9px 11px;background:rgba(14,19,29,.94);border:1px solid #b58f45;border-radius:10px;color:#f7e9c3;box-shadow:0 7px 22px #0009;pointer-events:none;font:12px system-ui,sans-serif; }
+.tape-readout-head { display:flex;align-items:center;justify-content:space-between;gap:10px; }
+#tapeStep { color:#d3c29d;font-size:11px; }
+#tapeDistance { display:block;font:700 23px/1.35 system-ui,sans-serif;color:#fff8e7;white-space:nowrap; }
+#tapeScaleNote { display:block;min-height:14px;color:#b8c3d1;font-size:10px; }
+.tape-readout-actions { pointer-events:auto; display:flex;gap:5px;align-items:center;margin-top:7px; }
+.tape-readout-actions button { background:#273141;color:#f6f7f9;border:1px solid #516071;border-radius:5px;min-height:29px;padding:4px 7px;font-weight:700;font-size:10px;cursor:pointer; }
+.tape-readout-actions button:disabled { opacity:.4;cursor:default; }
+.tape-snap-label { flex:1;display:flex;flex-direction:row;gap:4px;align-items:center;font-size:11px;white-space:nowrap;color:#e4e7eb; }
+.tape-snap-label input { width:auto;margin:0; }
+@media(max-width:520px){.tape-readout{right:6px;bottom:7px;padding:6px 8px;min-width:185px;}#tapeDistance{font-size:19px;}.tape-readout-actions button{padding:3px 5px;}}

@@ -1,4 +1,4 @@
-const CACHE_NAME="atlas-estimating-android-ceiling-v6";
+const CACHE_NAME="atlas-estimating-android-ceiling-v9-tape";
 const CORE=["./android.html","./index.html","./style.css","./app.js","./quantities.js","./ceiling-grid.js","./drywall-ceiling.js","./pdf-report.js","./door-sketch.js","./manifest-android.webmanifest","./atlas-android-192.png","./atlas-android-512.png"];
 self.addEventListener("install",e=>e.waitUntil((async()=>{const c=await caches.open(CACHE_NAME);for(const u of CORE){try{const r=await fetch(u,{cache:"reload"});if(r.ok)await c.put(u,r.clone())}catch(_){}}await self.skipWaiting()})()));
 self.addEventListener("activate",e=>e.waitUntil((async()=>{for(const k of await caches.keys())if(k.startsWith("atlas-estimating-android-")&&k!==CACHE_NAME)await caches.delete(k);await self.clients.claim()})()));

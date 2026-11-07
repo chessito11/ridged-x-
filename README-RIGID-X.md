@@ -60,3 +60,10 @@ Keep previous version backup before replacement and check project quantities bef
 - Older saved jobs without a board display setting use the new default, except jobs which explicitly had sheet display disabled, which continue to hide sheets.
 
 Reminder: the hatch represents a partial *sheet location*, not an exact fabrication-ready cut shape.
+
+## v2.8.1 — Larger hanger-wire dots
+
+- The pink on-drawing hanger-wire location markers are now **3× larger in diameter** (circle radius 2.5 px → 7.5 px).
+- Applies to visible hanger-wire points on both ACT and Rigid X ceilings, without changing hanger counts, wire spacing or takeoff formulas.
+- Cache version and HTML asset URL updated so the Android installed app reloads the new marker rendering.
+- Export saved project backups before updating, and fully close/reopen ATLAS after uploading the complete folder.

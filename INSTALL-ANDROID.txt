@@ -1,16 +1,12 @@
-ATLAS ESTIMATING v2.8 - ANDROID COMPLETE (ACT + RIGID X / DRYWALL)
+ATLAS Estimating v2.9 — Android / TAPE Tool
 
-1. BACKUP your current saved jobs with OPTIONS > Download Project Backup.
-2. Upload the entire ATLAS-Ceiling-Android-v2.8 folder to your Android HTTPS static site.
-   REQUIRED NEW FILE: drywall-ceiling.js (keep it next to ceiling-grid.js).
-3. Open https://YOUR-ANDROID-SITE/android.html in Chrome (while online).
-4. Refresh the webpage; close your installed ATLAS Android app fully and reopen it.
-5. If not installed: Chrome menu > Install app / Add to Home screen.
-6. Tap CEILING > Ceiling system > RIGID X - drywall suspension grid.
-7. Pick a drawn DXF outline (or two corners/trace), choose framing/board sizes.
-8. Choose Drywall display > Purple + light hatch on cuts (default), shaded, outline, or hidden.
-9. Export CEILING PDF / CSV or Material Summary PDF to share the estimated materials.
+This is the complete Android-only folder; do not mix iPad files.
 
-Keep Android source files separate from iPad version. DXF imports (not raw PDF).
-Use only for preliminary estimates; verify all suspension/framing/board requirements.
-Read README-RIGID-X.md for illustrated grid behavior and quantity definitions.
+1. Back up your existing ATLAS project(s) using Download Project Backup.
+2. Upload the COMPLETE contents of this Android folder to your published Android repository/site.
+3. In Android Chrome, open your site's android.html while online.
+4. Reload once, then fully close/reopen the installed ATLAS app to refresh the offline cache.
+5. Open a DXF, check units/calibrate, press 📏 TAPE, tap start and end.
+
+TAPE is a temporary measuring overlay; it does not change takeoff quantities or saved projects.
+Read README-TAPE-v2.9.md for controls and limitations.

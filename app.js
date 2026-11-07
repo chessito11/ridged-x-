@@ -43,6 +43,8 @@
     ceilingRectDraft: [],
     ceilingMoveMode: false,
     ceilingDragStart: null,
+    // Temporary two-point tape measurement, never part of the material takeoff or project file.
+    tape: { start: null, end: null, preview: null, snap: true },
     gesturePinched: false,
     selectedId: null,
     placingDoor: false,
@@ -314,6 +316,7 @@
       alert("Open a DXF drawing first.");
       return;
     }
+    if (state.toolMode === 'tape') { state.toolMode = 'wall'; state.tape.preview = null; updateToolUI(); }
     state.ceilingDrawing=false;state.ceilingDraft=[];updateCeilingStats();
     state.tempArea = {
       selecting: true,
@@ -498,7 +501,162 @@
     drawTemporaryAreaOverlay();
     drawCalibrationOverlay();
     drawTraceOverlay();
+    drawTapeOverlay();
   }
+
+
+  // TAPE v2.9: Temporary 2-point measurements. No material qty or project state changes.
+  function tapePoint(sx, sy) {
+    return state.tape.snap ? nearestCalibrationPoint(sx, sy) : screenToWorld(sx, sy);
+  }
+
+  function tapeLengthFt(end = state.tape.end || state.tape.preview) {
+    return state.tape.start && end
+      ? rawPointDistance(state.tape.start, end) * activeFeetPerUnit() : null;
+  }
+
+  function updateTapeUI() {
+    const active = state.toolMode === 'tape';
+    for (const id of ['tapeModeBtn', 'fsTapeBtn']) {
+      const btn = $(id);
+      if (!btn) continue;
+      btn.classList.toggle('active-tool', active);
+      btn.setAttribute('aria-pressed', String(active));
+      btn.textContent = active ? '📏 TAPE ✓' : '📏 TAPE';
+    }
+    const t = state.tape;
+    $('tapeReadout').hidden = !active && !t.start;
+    $('tapeSnapCheck').checked = t.snap;
+    const feet = tapeLengthFt();
+    $('tapeDistance').textContent = feet === null ? '—' : formatFeetInches(feet);
+    $('tapeCopyBtn').disabled = !t.end;
+    $('tapeStep').textContent = !t.start ? 'Tap first point' : !t.end ? 'Tap ending point' : 'Tap again for new tape';
+    const calibrated = Number.isFinite(state.calibration.feetPerUnit) && state.calibration.feetPerUnit > 0;
+    const unverified = !calibrated && !state.detectedUnits && $('unitSelect').value === 'auto';
+    $('tapeScaleNote').textContent = unverified ? '⚠ Verify DXF units or calibrate' : calibrated ? 'Using calibrated drawing scale' : `DXF units: ${currentUnit()} (verify scale)`;
+  }
+
+  function activateTapeMode() {
+    if (!state.segments.length) { alert('Open a DXF drawing first.'); return; }
+    if (state.toolMode === 'tape') {
+      state.tape.preview = null;
+      activateWallMode(false);
+      $('hintbar').textContent = 'TAPE OFF • last measurement remains until CLEAR';
+      updateTapeUI();
+      draw();
+      return;
+    }
+    // Other modes must not steal tape taps; keep ceiling entities and saved walls untouched.
+    clearCeilingModes();
+    state.tempArea.selecting = false;
+    updateTemporaryAreaUI();
+    state.placingDoor = false;
+    updateDoorModeUI();
+    state.trace.locked = false;
+    state.trace.lastPoint = null;
+    state.calibration.activePoint = null;
+    hideCalibrationPanel();
+    closeMoreMenu();
+    state.toolMode = 'tape';
+    state.tape.preview = null;
+    updateToolUI();
+    updateTraceUI();
+    updateTapeUI();
+    $('hintbar').textContent = state.tape.end ? 'TAPE: tap to begin a new distance • drag pans • pinch zooms' :
+      state.tape.start ? 'TAPE: tap ending point • drag pans • pinch zooms' :
+        'TAPE: tap start, then tap end • drag pans • pinch zooms';
+    draw();
+  }
+
+  function clearTape() {
+    state.tape.start = null;
+    state.tape.end = null;
+    state.tape.preview = null;
+    updateTapeUI();
+    if (state.toolMode === 'tape') $('hintbar').textContent = 'TAPE CLEARED • tap first point';
+    draw();
+  }
+
+  function tapTapePoint(sx, sy) {
+    const p = tapePoint(sx, sy);
+    if (!state.tape.start || state.tape.end) {
+      state.tape.start = p;
+      state.tape.end = null;
+      state.tape.preview = null;
+      $('hintbar').textContent = 'TAPE: starting point set • tap ending point';
+    } else if (rawPointDistance(state.tape.start, p) > 1e-9) {
+      state.tape.end = p;
+      state.tape.preview = null;
+      $('hintbar').textContent = `TAPE: ${formatFeetInches(tapeLengthFt())} • tap for a new measurement, or CLEAR`;
+    } else {
+      $('hintbar').textContent = 'TAPE: ending point must differ from starting point';
+    }
+    updateTapeUI();
+    draw();
+  }
+
+  function drawTapeOverlay() {
+    const t = state.tape;
+    if (!t.start) return;
+    const a = worldToScreen(t.start.x, t.start.y);
+    const end = t.end || (state.toolMode === 'tape' ? t.preview : null);
+    ctx.save();
+    ctx.lineWidth = 2.6;
+    ctx.strokeStyle = '#ffd166';
+    ctx.fillStyle = '#ffd166';
+    ctx.setLineDash(end && !t.end ? [7, 5] : []);
+    if (end) {
+      const b = worldToScreen(end.x, end.y);
+      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+      ctx.setLineDash([]);
+      const theta = Math.atan2(b.y-a.y,b.x-a.x);
+      for (const [p,sign] of [[a,1],[b,-1]]) {
+        ctx.beginPath();
+        ctx.moveTo(p.x+10*Math.cos(theta+sign*.55)*sign,p.y+10*Math.sin(theta+sign*.55)*sign);
+        ctx.lineTo(p.x,p.y);
+        ctx.lineTo(p.x+10*Math.cos(theta-sign*.55)*sign,p.y+10*Math.sin(theta-sign*.55)*sign);
+        ctx.stroke();
+      }
+      const text = formatFeetInches(tapeLengthFt(end));
+      ctx.font = 'bold 13px system-ui';
+      const w = ctx.measureText(text).width+20;
+      const rect = canvas.getBoundingClientRect();
+      const mx = Math.max(w/2+8,Math.min(rect.width-w/2-8,(a.x+b.x)/2));
+      const my = Math.max(20,Math.min(rect.height-20,(a.y+b.y)/2-18));
+      ctx.fillStyle = 'rgba(14,18,26,.94)';
+      ctx.strokeStyle = '#e7b95c';ctx.lineWidth = 1.2;
+      ctx.beginPath();ctx.roundRect(mx-w/2,my-12,w,24,6);ctx.fill();ctx.stroke();
+      ctx.fillStyle = '#ffdc83';ctx.textAlign = 'center';ctx.textBaseline = 'middle';
+      ctx.fillText(text,mx,my);
+      ctx.fillStyle = '#ffd166';
+    }
+    ctx.setLineDash([]);
+    for (const p of end ? [a,worldToScreen(end.x,end.y)] : [a]) {
+      ctx.beginPath();ctx.arc(p.x,p.y,6,0,Math.PI*2);
+      ctx.fillStyle = '#ffd166';ctx.fill();
+      ctx.strokeStyle = '#222';ctx.lineWidth = 1.8;ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  $('tapeModeBtn').addEventListener('click', activateTapeMode);
+  $('fsTapeBtn').addEventListener('click', activateTapeMode);
+  $('tapeClearBtn').addEventListener('click', clearTape);
+  $('tapeExitBtn').addEventListener('click', () => {
+    if (state.toolMode === 'tape') activateTapeMode();
+    else { clearTape(); }
+  });
+  $('tapeSnapCheck').addEventListener('change', (e) => {
+    state.tape.snap = e.target.checked;
+    state.tape.preview = null;
+    updateTapeUI();draw();
+  });
+  $('tapeCopyBtn').addEventListener('click', async () => {
+    if (!state.tape.end) return;
+    const s = formatFeetInches(tapeLengthFt());
+    try { await navigator.clipboard.writeText(s); $('tapeStep').textContent = 'Copied'; }
+    catch (_) { $('tapeStep').textContent = 'Clipboard unavailable'; }
+  });
 
   $("showStudDots").addEventListener("change", draw);
 
@@ -1264,6 +1422,7 @@
     $("orthoLockBtn").setAttribute("aria-pressed", state.trace.ortho ? "true" : "false");
     $("orthoLockBtn").textContent = state.trace.ortho ? "ORTHO ✓" : "ORTHO";
     syncFullscreenTools();
+    updateTapeUI();
     $("selectedWallPanel").classList.toggle("tool-priority", wallActive || traceActive);
     $("calibrationPanel").classList.toggle("tool-priority", !wallActive);
 
@@ -2241,6 +2400,7 @@
       state.ceilingDrawing = false;
       state.ceilingPickMode = false;state.ceilingRectMode = false;state.ceilingRectDraft=[];
       state.ceilingMoveMode = false;
+      state.tape.start=null;state.tape.end=null;state.tape.preview=null;
       syncCeilingPanel();
       state.hiddenWallTypes = new Set(Array.isArray(p.hiddenWallTypes)
         ? p.hiddenWallTypes.filter(name => typeof name === "string") : []);
@@ -2406,6 +2566,7 @@
     $("fsTraceBtn").classList.toggle("active-tool", fsTraceActive);
     $("fsTraceBtn").setAttribute("aria-pressed", fsTraceActive ? "true" : "false");
     $("fsTraceBtn").textContent = fsTraceActive ? "STOP ■" : "TRACE ▶";
+    $("fsTapeBtn").classList.toggle("active-tool", state.toolMode === "tape");
     $("fsLockBtn").classList.toggle("trace-on", state.trace.locked);
     $("fsLockBtn").classList.toggle("trace-paused", state.toolMode === "trace" && !state.trace.locked);
     $("fsLockBtn").textContent = state.trace.locked ? "TRACE LOCK ✓" : "TRACE LOCK";
@@ -2620,6 +2781,7 @@
     state.segments = parsed.segments;
     state.ceilings=[];state.ceilingSelected=null;state.ceilingDraft=[];state.ceilingDrawing=false;
     state.ceilingPickMode=false;state.ceilingRectMode=false;state.ceilingRectDraft=[];state.ceilingMoveMode=false;
+    state.tape.start=null;state.tape.end=null;state.tape.preview=null;
     syncCeilingPanel();
     state.detectedUnits = parsed.detectedUnits;
     state.calibration = { activePoint: null, points: [null, null], feetPerUnit: null };
@@ -2795,7 +2957,7 @@
     if (typing) return;
 
     if ((e.key === "Delete" || e.key === "Backspace") &&
-        state.selectedId && state.walls.has(state.selectedId)) {
+        state.toolMode !== 'tape' && state.selectedId && state.walls.has(state.selectedId)) {
       e.preventDefault();
       deleteWallById(state.selectedId, true);
     }
@@ -2841,7 +3003,14 @@
   });
 
   canvas.addEventListener("pointermove", (e) => {
-    if (!state.pointers.has(e.pointerId)) return;
+    if (!state.pointers.has(e.pointerId)) {
+      if (state.toolMode === 'tape' && state.tape.start && !state.tape.end) {
+        const rect = canvas.getBoundingClientRect();
+        state.tape.preview = tapePoint(e.clientX-rect.left,e.clientY-rect.top);
+        updateTapeUI();draw();
+      }
+      return;
+    }
     state.pointers.set(e.pointerId, {x:e.clientX,y:e.clientY});
 
     if (state.pointers.size === 2) {
@@ -2896,7 +3065,8 @@
       if (state.moved) {markProjectDirty();updateCeilingStats();}
       state.ceilingDragStart=null;
     } else if (hadOne && !state.moved && !wasPinch) {
-      if (state.ceilingPickMode) pickExistingCeilingOutline(sx,sy);
+      if (state.toolMode === 'tape') tapTapePoint(sx, sy);
+      else if (state.ceilingPickMode) pickExistingCeilingOutline(sx,sy);
       else if (state.ceilingRectMode) addCeilingRectangleCorner(sx,sy);
       else if (state.ceilingDrawing) addCeilingPoint(sx,sy);
       else if (state.tempArea.selecting) addTemporaryAreaPoint(sx,sy);
@@ -3256,6 +3426,7 @@
   }
   $("placeDoorBtn").addEventListener("click",()=> {
     if(!state.walls.size){alert("Save or trace a wall first, then use DOOR to point to an opening.");return;}
+    if (state.toolMode === 'tape') { state.toolMode = 'wall'; state.tape.preview = null; updateToolUI(); }
     state.placingDoor=!state.placingDoor;
     state.calibration.activePoint=null;
     updateDoorModeUI();
@@ -4099,6 +4270,7 @@
   $('ceilingExportPdf').addEventListener('click',()=>exportMaterialPDF(true));
   $('exportMaterialPdfBtn').addEventListener('click',()=>exportMaterialPDF(false));
   document.addEventListener('keydown',e=>{
+    if(e.key==='Escape' && state.toolMode==='tape') { activateTapeMode(); return; }
     if(e.key==='Escape'&&(state.ceilingDrawing||state.ceilingPickMode||state.ceilingRectMode||state.ceilingMoveMode)){
       clearCeilingModes();updateCeilingStats();draw();
     }

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#17191d" />
   <title>ATLAS Takeoff</title>
-  <link rel="stylesheet" href="style.css?v=ceiling-v4" />
+  <link rel="stylesheet" href="style.css?v=tape-v29" />
 </head>
 <body class="panels-hidden">
   <header class="topbar">
@@ -18,6 +18,7 @@
       <input id="dxfFile" type="file" hidden>
       <button id="wallModeBtn" class="button active-tool" type="button" hidden aria-hidden="true">WALL</button>
       <button id="ceilingModeBtn" class="button" type="button">CEILING ▦</button>
+      <button id="tapeModeBtn" class="button tape-mode-button" type="button" aria-pressed="false" title="Measure distance between two drawing points">📏 TAPE</button>
        <button id="traceWallsBtn" class="button" type="button" aria-pressed="false">TRACE ▶</button>
       <button id="traceLockBtn" class="button trace-lock-button" type="button" aria-pressed="false" hidden aria-hidden="true">LOCK</button>
       <button id="orthoLockBtn" class="button ortho-lock-button" type="button" aria-pressed="false">ORTHO</button>
@@ -113,6 +114,7 @@
       <div id="fullScreenTools" class="fullscreen-tools" aria-label="Full-screen wall tools">
         <button id="fsWallBtn" class="button" type="button" hidden aria-hidden="true">WALL</button>
         <button id="fsCeilingBtn" class="button" type="button">CEILING ▦</button>
+        <button id="fsTapeBtn" class="button tape-mode-button" type="button" aria-pressed="false">📏 TAPE</button>
          <button id="fsTraceBtn" class="button" type="button" aria-pressed="false">TRACE ▶</button>
         <button id="fsLockBtn" class="button" type="button" hidden aria-hidden="true">TRACE LOCK</button>
         <button id="fsOrthoBtn" class="button" type="button">ORTHO</button>
@@ -126,6 +128,17 @@
       </div>
       <div id="canvasWrap">
         <canvas id="dxfCanvas"></canvas>
+        <div id="tapeReadout" class="tape-readout" hidden aria-live="polite">
+          <div class="tape-readout-head"><strong>📏 TAPE</strong><span id="tapeStep">Tap first point</span></div>
+          <output id="tapeDistance">—</output>
+          <small id="tapeScaleNote">DXF scale</small>
+          <div class="tape-readout-actions">
+            <label class="tape-snap-label"><input id="tapeSnapCheck" type="checkbox" checked> Snap</label>
+            <button id="tapeClearBtn" type="button">CLEAR</button>
+            <button id="tapeCopyBtn" type="button" disabled>COPY</button>
+            <button id="tapeExitBtn" type="button">EXIT</button>
+          </div>
+        </div>
         <div id="emptyState" class="empty-state">
           <strong>Open a DXF drawing</strong>
           <span>Then tap a wall line to create a takeoff item.</span>
@@ -570,11 +583,11 @@
       <div class="project-dialog-actions"><button type="submit" class="button primary">Save Door</button><button id="cancelDoorBtn" class="button" type="button">Cancel</button></div>
     </form>
   </div>
-  <script src="quantities.js?v=ceiling-v4"></script>
-  <script src="door-sketch.js?v=ceiling-v4"></script>
-  <script src="ceiling-grid.js?v=ceiling-v4"></script>
-  <script src="drywall-ceiling.js?v=ceiling-v4"></script>
-  <script src="pdf-report.js?v=ceiling-v4"></script>
-  <script src="app.js?v=ceiling-v4"></script>
+  <script src="quantities.js?v=tape-v29"></script>
+  <script src="door-sketch.js?v=tape-v29"></script>
+  <script src="ceiling-grid.js?v=tape-v29"></script>
+  <script src="drywall-ceiling.js?v=tape-v29"></script>
+  <script src="pdf-report.js?v=tape-v29"></script>
+  <script src="app.js?v=tape-v29"></script>
 </body>
 </html>
