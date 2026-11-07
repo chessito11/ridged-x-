@@ -3951,7 +3951,7 @@
             drawRuns(r.cross4,'y','#6fd4ec',1.15);
             drawRuns(r.cross2,'x','#6fd4ec',1.15);
           }
-          if(active && (ceilingSystem(c)!=='rigidx'||c.showRigidFraming!==false) && r.hangerPoints.length<3000){ctx.fillStyle='#f5a5e6';for(const h of r.hangerPoints){const p=toScreen(h.x,h.y);ctx.beginPath();ctx.arc(p.x,p.y,2.5,0,Math.PI*2);ctx.fill();}}
+          if(active && (ceilingSystem(c)!=='rigidx'||c.showRigidFraming!==false) && r.hangerPoints.length<3000){ctx.fillStyle='#f5a5e6';for(const h of r.hangerPoints){const p=toScreen(h.x,h.y);ctx.beginPath();ctx.arc(p.x,p.y,7.5,0,Math.PI*2);ctx.fill();}}
         }catch(_){/* Uncalibrated or incomplete draft; drawing stays accessible. */}
       }
       ctx.restore();
