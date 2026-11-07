@@ -1,4 +1,4 @@
-> **Previous ACT v2.6 feature documentation.** For current Rigid X and drywall sheet takeoff functionality in v2.7, see `README-RIGID-X.md`.
+> **Previous ACT v2.6 feature documentation.** For current Rigid X and drywall sheet takeoff functionality in v2.8, see `README-RIGID-X.md`.
 
 # ATLAS Estimating - Android | Live Ceiling Takeoff v2.6
 

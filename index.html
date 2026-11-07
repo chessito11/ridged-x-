@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#17191d" />
   <title>ATLAS Takeoff</title>
-  <link rel="stylesheet" href="style.css?v=ceiling-v3" />
+  <link rel="stylesheet" href="style.css?v=ceiling-v4" />
 </head>
 <body class="panels-hidden">
   <header class="topbar">
@@ -161,9 +161,9 @@
          <div class="field-row"><label>Board thickness<select id="boardThickness"><option value="5/8">5/8″</option><option value="1/2">1/2″</option></select></label><label>Board layers<select id="boardLayers"><option value="1">1 layer</option><option value="2">2 layers</option></select></label></div>
          <div class="field-row"><label>Sheet direction<select id="boardRotation"><option value="0">Length along grid X</option><option value="90">Length along grid Y</option></select></label><label class="checkline"><input type="checkbox" id="boardStagger" checked> Stagger joints (½ sheet)</label></div>
          <div class="field-row"><label>Drywall X offset (feet)<input id="boardOffsetX" type="number" value="0" step="0.25"></label><label>Drywall Y offset (feet)<input id="boardOffsetY" type="number" value="0" step="0.25"></label></div>
-         <div class="field-row"><label class="checkline"><input id="showRigidFraming" type="checkbox" checked> Show framing grid</label><label class="checkline"><input id="showBoardLayout" type="checkbox" checked> Show drywall sheet layout</label></div>
-         <label class="checkline"><input type="checkbox" id="showBoardNumbers" checked> Show drywall sheet locations as G1, G2, ...</label>
-         <small class="muted">Amber = 12′ mains; cyan = cross tees; purple dashed = gypsum sheet joints. Board offsets move sheets relative to framing; MOVE GRID drags both together. 2nd board layer is counted but only the first-layer layout is shown. Check that every board joint has support.</small>
+         <div class="field-row"><label>Drywall display<select id="boardDisplayMode"><option value="hatch">Purple + light hatch on cuts</option><option value="shaded">Purple shade (all sheets)</option><option value="outline">Outline only</option><option value="hidden">Drywall hidden</option></select></label><label class="checkline"><input id="showRigidFraming" type="checkbox" checked> Show Rigid X framing</label></div>
+         <label class="checkline"><input type="checkbox" id="showBoardNumbers" checked> Show sheet labels inside boards (G1, G2, ...)</label>
+         <small class="muted">Full boards: translucent purple. Cut pieces: lighter purple with fine diagonal hatch. Amber mains and cyan tees stay visible above the drywall shading. Use the Drywall display selector to change the overlay or hide it; quantities do not change. Only the first-layer sheet layout is drawn. Verify all board joints have framing support.</small>
        </div>
        <label>Rotation degrees<input id="ceilingAngle" type="number" value="0" step="1"></label>
        <div class="field-row"><label>Grid X offset (feet)<input id="ceilingOffsetX" type="number" value="0" step="0.25"></label><label>Grid Y offset (feet)<input id="ceilingOffsetY" type="number" value="0" step="0.25"></label></div>
@@ -570,11 +570,11 @@
       <div class="project-dialog-actions"><button type="submit" class="button primary">Save Door</button><button id="cancelDoorBtn" class="button" type="button">Cancel</button></div>
     </form>
   </div>
-  <script src="quantities.js?v=ceiling-v3"></script>
-  <script src="door-sketch.js?v=ceiling-v3"></script>
-  <script src="ceiling-grid.js?v=ceiling-v3"></script>
-  <script src="drywall-ceiling.js?v=ceiling-v3"></script>
-  <script src="pdf-report.js?v=ceiling-v3"></script>
-  <script src="app.js?v=ceiling-v3"></script>
+  <script src="quantities.js?v=ceiling-v4"></script>
+  <script src="door-sketch.js?v=ceiling-v4"></script>
+  <script src="ceiling-grid.js?v=ceiling-v4"></script>
+  <script src="drywall-ceiling.js?v=ceiling-v4"></script>
+  <script src="pdf-report.js?v=ceiling-v4"></script>
+  <script src="app.js?v=ceiling-v4"></script>
 </body>
 </html>

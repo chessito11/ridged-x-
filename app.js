@@ -3521,7 +3521,10 @@
   const ceilingDefaults=()=>({system:'act',tile:'2x2',waste:5,angle:0,offsetX:0,offsetY:0,
     rigidMainSpacing:4,rigidCrossSpacing:24,rigidWireSpacing:48,boardWidth:4,boardLength:8,
     boardThickness:'5/8',boardLayers:1,boardRotation:'0',boardStagger:true,
-    boardOffsetX:0,boardOffsetY:0,showRigidFraming:true,showBoardLayout:true,showBoardNumbers:true});
+    boardOffsetX:0,boardOffsetY:0,showRigidFraming:true,showBoardLayout:true,boardDisplayMode:'hatch',showBoardNumbers:true});
+  // Backward-compatible rendering for ceiling projects saved before v2.8.
+  const ceilingBoardDisplay=c=>['hatch','shaded','outline','hidden'].includes(c?.boardDisplayMode)
+    ?c.boardDisplayMode:(c?.showBoardLayout===false?'hidden':'hatch');
   const ceilingSystem=c=>c?.system==='rigidx'?'rigidx':'act';
   function updateCeilingSystemUI(){
     const rigid=$('ceilingSystem').value==='rigidx';
@@ -3542,7 +3545,8 @@
       boardLayers:Number($('boardLayers').value),boardRotation:$('boardRotation').value,
       boardStagger:$('boardStagger').checked,boardOffsetX:Number($('boardOffsetX').value),
       boardOffsetY:Number($('boardOffsetY').value),showRigidFraming:$('showRigidFraming').checked,
-      showBoardLayout:$('showBoardLayout').checked,showBoardNumbers:$('showBoardNumbers').checked};
+      boardDisplayMode:$('boardDisplayMode').value,
+      showBoardLayout:$('boardDisplayMode').value!=='hidden',showBoardNumbers:$('showBoardNumbers').checked};
   }
   function ceilingResult(c){
     return ceilingSystem(c)==='rigidx' ? AtlasDrywallCeiling.calculate(c.points,activeFeetPerUnit(),c) : AtlasCeilingGrid.calculate(c.points,activeFeetPerUnit(),c);
@@ -3592,7 +3596,8 @@
         ['boardWidth','boardWidth'],['boardLength','boardLength'],['boardThickness','boardThickness'],
         ['boardLayers','boardLayers'],['boardRotation','boardRotation'],['boardOffsetX','boardOffsetX'],
         ['boardOffsetY','boardOffsetY']])$(id).value=c[key]??ceilingDefaults()[key];
-      for(const id of ['boardStagger','showRigidFraming','showBoardLayout','showBoardNumbers'])$(id).checked=c[id]??ceilingDefaults()[id];
+      for(const id of ['boardStagger','showRigidFraming','showBoardNumbers'])$(id).checked=c[id]??ceilingDefaults()[id];
+      $('boardDisplayMode').value=ceilingBoardDisplay(c);
     }else{
       $('ceilingName').value=`${$('ceilingSystem').value==='rigidx'?'RX':'ACT'}-${state.ceilings.length+1}`;
     }
@@ -3826,6 +3831,47 @@
     if(state.ceilingSelected===c.id)state.ceilingSelected=state.ceilings[0]?.id||null;
     clearCeilingModes();syncCeilingPanel();markProjectDirty();draw();
   }
+  let gypsumCutHatch=null;
+  function getGypsumCutHatch(){
+    if(gypsumCutHatch)return gypsumCutHatch;
+    const tile=document.createElement('canvas');tile.width=12;tile.height=12;
+    const p=tile.getContext('2d');
+    p.strokeStyle='rgba(230,210,255,.40)';p.lineWidth=.85;
+    p.beginPath();
+    for(let x=-12;x<24;x+=12){p.moveTo(x,12);p.lineTo(x+12,0);}
+    p.stroke();
+    gypsumCutHatch=ctx.createPattern(tile,'repeat');
+    return gypsumCutHatch;
+  }
+  function gypsumSheetCentroid(poly){
+    // Area-weighted centroid stays inside most clipped board footprints.
+    let twiceArea=0,cx=0,cy=0;
+    for(let i=0;i<poly.length;i++){
+      const a=poly[i],b=poly[(i+1)%poly.length],cross=a.x*b.y-b.x*a.y;
+      twiceArea+=cross;cx+=(a.x+b.x)*cross;cy+=(a.y+b.y)*cross;
+    }
+    if(Math.abs(twiceArea)>1e-7){
+      const mid={x:cx/(3*twiceArea),y:cy/(3*twiceArea)};
+      if(pointInPolygon(mid,poly))return mid;
+    }
+    // An irregular room can clip a sheet into a concave shape whose centroid
+    // falls outside. Search a small grid for a safe interior label position.
+    const xs=poly.map(p=>p.x),ys=poly.map(p=>p.y);
+    const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+    let best=null,bestClearance=-1;
+    for(let iy=1;iy<=7;iy++)for(let ix=1;ix<=7;ix++){
+      const q={x:minX+(maxX-minX)*ix/8,y:minY+(maxY-minY)*iy/8};
+      if(!pointInPolygon(q,poly))continue;
+      let clearance=Infinity;
+      for(let i=0;i<poly.length;i++){
+        const a=poly[i],b=poly[(i+1)%poly.length],dx=b.x-a.x,dy=b.y-a.y;
+        const t=Math.max(0,Math.min(1,((q.x-a.x)*dx+(q.y-a.y)*dy)/(dx*dx+dy*dy||1)));
+        clearance=Math.min(clearance,Math.hypot(q.x-a.x-t*dx,q.y-a.y-t*dy));
+      }
+      if(clearance>bestClearance){best=q;bestClearance=clearance;}
+    }
+    return best||poly[0];
+  }
   function drawCeilingsOverlay(){
     if(!$('ceilingShowGrid')?.checked)return;
     const factor=activeFeetPerUnit();
@@ -3856,27 +3902,49 @@
             ctx.stroke();
           };
           if(ceilingSystem(c)==='rigidx'){
-            if(c.showRigidFraming!==false){
-              drawRuns(r.main,'x','#fcbd58',1.8);
-              drawRuns(r.cross,'y','#6fd4ec',1.2);
-            }
-            if(c.showBoardLayout!==false && r.sheets.length<12000){
-              // Clip each board to the room polygon so joints do not spill into corridors/other areas.
-              ctx.save();ctx.strokeStyle='#bc91ff';ctx.lineWidth=1.45;ctx.setLineDash([5,3]);
+            const boardMode=ceilingBoardDisplay(c);
+            const showBoards=boardMode!=='hidden'&&r.sheets.length<12000;
+            if(showBoards){
+              // Render individual clipped drywall footprints; cut pieces use a lighter hatch.
+              // Paint FIRST so amber mains and cyan tees remain visible ABOVE the sheet fill.
+              ctx.save();
               for(const sheet of r.sheets){
-                ctx.beginPath();for(let i=0;i<sheet.polygon.length;i++){
-                  const q=toScreen(sheet.polygon[i].x,sheet.polygon[i].y);
-                  i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y);
-                }ctx.closePath();ctx.stroke();
+                if(sheet.polygon.length<3)continue;
+                ctx.beginPath();
+                sheet.polygon.forEach((v,i)=>{const q=toScreen(v.x,v.y);i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y);});
+                ctx.closePath();
+                if(boardMode==='hatch'){
+                  ctx.fillStyle=sheet.full?'rgba(155,97,236,.23)':'rgba(174,117,241,.105)';
+                  ctx.fill();
+                  if(!sheet.full){ctx.fillStyle=getGypsumCutHatch();ctx.fill();}
+                }else if(boardMode==='shaded'){
+                  ctx.fillStyle=sheet.full?'rgba(155,97,236,.26)':'rgba(187,138,244,.19)';
+                  ctx.fill();
+                }
+                ctx.strokeStyle=sheet.full?'rgba(212,175,255,.87)':'rgba(213,172,250,.73)';
+                ctx.lineWidth=sheet.full?1.2:1.05;
+                ctx.setLineDash(sheet.full?[]:[3,2]);
+                ctx.stroke();
               }
               ctx.restore();
-              if(active&&c.showBoardNumbers!==false&&r.sheets.length<=1500&&state.view.scale*r.boardWidth/factor>27){
-                ctx.save();ctx.font='bold 10px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#e3d0ff';
-                for(const sh of r.sheets){
-                  const mid={x:sh.polygon.reduce((v,p)=>v+p.x,0)/sh.polygon.length,y:sh.polygon.reduce((v,p)=>v+p.y,0)/sh.polygon.length};
-                  const pos=toScreen(mid.x,mid.y);ctx.fillText('G'+sh.index,pos.x,pos.y);
-                }ctx.restore();
+            }
+            if(c.showRigidFraming!==false){
+              drawRuns(r.main,'x','#fcbd58',1.9);
+              drawRuns(r.cross,'y','#6fd4ec',1.35);
+            }
+            if(showBoards&&c.showBoardNumbers!==false&&r.sheets.length<=1500){
+              ctx.save();ctx.font='bold 11px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+              for(const sheet of r.sheets){
+                const screenPoly=sheet.polygon.map(p=>toScreen(p.x,p.y));
+                const w=Math.max(...screenPoly.map(p=>p.x))-Math.min(...screenPoly.map(p=>p.x));
+                const h=Math.max(...screenPoly.map(p=>p.y))-Math.min(...screenPoly.map(p=>p.y));
+                // Don't crowd a sliver with unreadable text; IDs remain in the material count.
+                if(w<23||h<17)continue;
+                const mid=gypsumSheetCentroid(sheet.polygon),pos=toScreen(mid.x,mid.y),label='G'+sheet.index;
+                ctx.lineWidth=3;ctx.strokeStyle='rgba(20,13,30,.88)';ctx.strokeText(label,pos.x,pos.y);
+                ctx.fillStyle=sheet.full?'#f1ddff':'#faedff';ctx.fillText(label,pos.x,pos.y);
               }
+              ctx.restore();
             }
           }else{
             drawRuns(r.main,'x','#fcbd58',1.8);
@@ -4018,7 +4086,7 @@
   $('ceilingSelect').addEventListener('change',()=>{state.ceilingSelected=$('ceilingSelect').value||null;clearCeilingModes();syncCeilingPanel();draw();});
   for(const id of ['ceilingNumber','ceilingName','ceilingSystem','ceilingTile','ceilingWaste','ceilingAngle','ceilingOffsetX','ceilingOffsetY',
     'rigidMainSpacing','rigidCrossSpacing','rigidWireSpacing','boardWidth','boardLength','boardThickness','boardLayers','boardRotation',
-    'boardStagger','boardOffsetX','boardOffsetY','showRigidFraming','showBoardLayout','showBoardNumbers']){
+    'boardStagger','boardOffsetX','boardOffsetY','showRigidFraming','boardDisplayMode','showBoardNumbers']){
     $(id).addEventListener('change',changeCeilingInputs);
     if(id!=='ceilingNumber')$(id).addEventListener('input',changeCeilingInputs);
   }

@@ -1464,3 +1464,7 @@ body .app-grid {
 .ceiling-divider{font-weight:800;letter-spacing:.06em;font-size:11px;color:#a9c9e7;padding:8px 0 3px;border-bottom:1px solid #34475b;}
 .rigid-ceiling-options label.checkline{padding-top:14px;}
 .rigid-ceiling-options input[type=checkbox]{accent-color:#a78bfa;}
+
+/* v2.8: shade and cut-sheet hatch select in live gypsum overlay */
+#boardDisplayMode { border-color:#8062a5; }
+#rigidCeilingOptions .field-row > label { min-width:0; }

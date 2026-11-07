@@ -1,14 +1,15 @@
-ATLAS ESTIMATING v2.7 - ANDROID COMPLETE (ACT + RIGID X / DRYWALL)
+ATLAS ESTIMATING v2.8 - ANDROID COMPLETE (ACT + RIGID X / DRYWALL)
 
 1. BACKUP your current saved jobs with OPTIONS > Download Project Backup.
-2. Upload the entire ATLAS-Ceiling-Android-v2.7 folder to your Android HTTPS static site.
+2. Upload the entire ATLAS-Ceiling-Android-v2.8 folder to your Android HTTPS static site.
    REQUIRED NEW FILE: drywall-ceiling.js (keep it next to ceiling-grid.js).
 3. Open https://YOUR-ANDROID-SITE/android.html in Chrome (while online).
 4. Refresh the webpage; close your installed ATLAS Android app fully and reopen it.
 5. If not installed: Chrome menu > Install app / Add to Home screen.
 6. Tap CEILING > Ceiling system > RIGID X - drywall suspension grid.
 7. Pick a drawn DXF outline (or two corners/trace), choose framing/board sizes.
-8. Export CEILING PDF / CSV or Material Summary PDF to share the estimated materials.
+8. Choose Drywall display > Purple + light hatch on cuts (default), shaded, outline, or hidden.
+9. Export CEILING PDF / CSV or Material Summary PDF to share the estimated materials.
 
 Keep Android source files separate from iPad version. DXF imports (not raw PDF).
 Use only for preliminary estimates; verify all suspension/framing/board requirements.

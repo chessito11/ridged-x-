@@ -1,4 +1,4 @@
-# ATLAS Estimating v2.7 - Rigid X + Live Drywall Board Layout
+# ATLAS Estimating v2.8 - Rigid X + Live Drywall Board Layout
 
 This is an Android-only **complete** ATLAS source folder. It contains the wall/door takeoff, previous ACT ceiling estimator, the Rigid X / drywall suspension ceiling mode and offline CSV/PDF reports. The former ACT ceiling layout remains selectable. All components are locally run in the browser; production Android installation uses HTTPS.
 
@@ -9,8 +9,8 @@ This is an Android-only **complete** ATLAS source folder. It contains the wall/d
 - Main suspension tees (amber): choose 4 ft or 6 ft OC; nominal 12 ft main-piece order estimate.
 - Cross tees (cyan): select 16 or 24 inches OC; estimated nominal 4 ft or 6 ft cross-piece counts (matching selected main spacing).
 - Hanger wires (pink marks) at configurable 24, 36 or 48 inches along mains, and 10 ft wall angle ordering.
-- Drywall sheet locations (purple dashed outlines) directly over the plan, independently toggleable from framing.
-- Board locations labeled G1, G2, ... for the selected area when sufficiently zoomed in.
+- Drywall sheet locations shaded purple, with light hatch for cut pieces; optional outline-only and hidden views independent of framing.
+- Board locations labeled G1, G2, ... inside all displayed ceiling boards when there is enough room at the current zoom.
 - Editable board width, board length, thickness, 1/2 layers, 0/90-degree direction and optional alternating half-sheet stagger. Suggested dimensions include 4x8, 4x10, 4x12, 4x14 and 4x16 ft, but width and length inputs can be customized within their allowed ranges.
 - Separate gypsum X/Y offsets let you fine tune board seams relative to framing; MOVE GRID moves the entire ceiling grid and board layout over the pre-drawn DXF. Pinch-to-zoom remains a viewer zoom, not a rescale of the 4-ft / 6-ft geometry.
 - A takeoff material summary including ceiling area, main/tee LF, approximate purchase pieces with waste, hangers, wall angle, gypsum board positions and board SF. PDF and CSV exports include both ACT and Rigid X assemblies, grouped by system and board size.
@@ -18,12 +18,12 @@ This is an Android-only **complete** ATLAS source folder. It contains the wall/d
 ## Workflow
 
 1. **Backup first.** Export important jobs with OPTIONS > Download Project Backup. Old browser records are stored on the Android device/browser, not in the hosting repository.
-2. Publish the **whole** `ATLAS-Ceiling-Android-v2.7` folder on your Android static HTTPS site (typically your dedicated Android GitHub Pages project). Upload `drywall-ceiling.js` alongside every other file, not just HTML/JS replacements.
+2. Publish the **whole** `ATLAS-Ceiling-Android-v2.8` folder on your Android static HTTPS site (typically your dedicated Android GitHub Pages project). Upload `drywall-ceiling.js` alongside every other file, not just HTML/JS replacements.
 3. In Android Chrome, open `android.html` online, reload once if necessary, then fully close and reopen the installed ATLAS icon. The service-worker version changed to refresh all offline files.
 4. Open an ASCII DXF. Verify dimensions with the units selector or existing scale calibration.
 5. Tap **CEILING**, select **RIGID X - drywall suspension grid**. Keep the chosen board size and spacing in the form.
 6. If the ceiling outline already exists in DXF, select **PICK DXF OUTLINE** and tap it. For a rectangle choose **2 CORNERS**. Otherwise use **+ NEW CEILING AREA** and trace the area, then CLOSE CEILING.
-7. Choose board size, layer count, tee spacing and direction. On the plan, see **amber mains + cyan cross tees + purple dashed board outlines** and **G1/G2** sheet location marks. Switch ACT on a different ceiling area if needed.
+7. Choose board size, layer count, tee spacing and direction. On the plan, see **amber mains + cyan cross tees + transparent purple boards with light diagonal hatch on cut pieces** and **G1/G2** sheet location marks. Switch ACT on a different ceiling area if needed.
 8. Use **MOVE GRID** and drag the selected room to align both frameworks to the RCP; pinching zooms. If only board seams need to move, adjust **Drywall X/Y offset** without altering framing coordinates. Rotate the overall ceiling with Rotation degrees.
 9. Use **CEILING PDF** or **Ceiling CSV**, or the original **DOWNLOAD MATERIAL SUMMARY PDF** button inside Material Summary to include walls and all ceiling types.
 10. Save Project / Download Project Backup for portability.
@@ -43,7 +43,20 @@ Actual ordering should account for piece reuse, edge conditions, transport, inst
 ## Compatibility/testing
 
 - Existing saved ACT ceilings (without a `system` property) are recognized as ACT. Rigid X ceilings save extra settings as fields inside the existing `ceilings` array in the ATLAS v2 project backup format.
-- Test case: a closed 20 x 12 ft DXF area was imported. Selected Rigid X with 4 ft mains / 16 in cross tees and 4 x 12 ft gypsum. The saved C-001 markup, color-coded framing, G-indexed board footprint overlay, takeoff calculations, PDF/CSV and project JSON backup were exercised in headless Chromium; no JS runtime exceptions occurred.
-- Browser-tested on desktop Chromium. **Not physically tested on an Android phone/tablet**; actual device gestures, installation and offline opening need field verification.
+- Previous v2.7: the 20 x 12 ft ceiling and report export were tested with a desktop browser.
+- Current v2.8: JavaScript syntax and sample geometric quantities checked. Canvas overlay rendering tested with a mocked 2D context for all four display modes, full/cut fills, G labels, framing visibility and independent toggles. **Full browser testing was unavailable in this build environment**.
+- **Not physically tested on an Android phone/tablet**; actual device gestures, installation and offline opening need field verification.
 
 Keep previous version backup before replacement and check project quantities before placing material orders.
+
+## v2.8 live drywall rendering
+
+- **Purple + light hatch on cuts** (default): full boards are shaded translucent purple; partial sheet positions have lighter purple and fine diagonal hatch.
+- **Purple shade (all sheets)**: fill every board in shades of purple, without hatching.
+- **Outline only**: see board boundaries with no fills.
+- **Drywall hidden**: remove board fills, outlines and G labels; framing remains visible if Show Rigid X framing is checked.
+- **Show sheet labels**: G1, G2, etc. centered inside boards when enough space exists at current zoom; too-small slivers hide labels for legibility.
+- Rendering is clipped to the ceiling boundary and does not alter takeoff counts, board spacing, framing settings, CSV or PDF quantity calculations.
+- Older saved jobs without a board display setting use the new default, except jobs which explicitly had sheet display disabled, which continue to hide sheets.
+
+Reminder: the hatch represents a partial *sheet location*, not an exact fabrication-ready cut shape.
