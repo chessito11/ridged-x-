@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#17191d" />
+  <title>ATLAS Takeoff</title>
+  <link rel="stylesheet" href="style.css?v=ceiling-v3" />
+</head>
+<body class="panels-hidden">
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">Standalone DXF wall + ACT + Rigid X drywall takeoff</div>
+      <h1>ATLAS Takeoff</h1>
+    </div>
+    <div class="top-actions compact-top-actions">
+      <button id="openDxfBtn" class="button primary" type="button">OPEN</button>
+      <input id="dxfFile" type="file" hidden>
+      <button id="wallModeBtn" class="button active-tool" type="button" hidden aria-hidden="true">WALL</button>
+      <button id="ceilingModeBtn" class="button" type="button">CEILING ▦</button>
+       <button id="traceWallsBtn" class="button" type="button" aria-pressed="false">TRACE ▶</button>
+      <button id="traceLockBtn" class="button trace-lock-button" type="button" aria-pressed="false" hidden aria-hidden="true">LOCK</button>
+      <button id="orthoLockBtn" class="button ortho-lock-button" type="button" aria-pressed="false">ORTHO</button>
+      <button id="togglePanelsBtn" class="button" type="button" aria-controls="takeoffPanels" aria-expanded="false">TAKEOFF ▾</button>
+      <span id="currentTypeBadge" class="current-type-badge compact-type-badge" role="status" aria-live="polite" title="Current wall type for new traced walls">TYPE: Unassigned</span>
+
+      <details id="moreMenu" class="more-menu">
+        <summary class="button more-summary">OPTIONS ▾</summary>
+        <div class="more-menu-panel">
+          <button id="saveProjectBtn" class="button" type="button">Save Project</button>
+          <button id="openProjectBtn" class="button" type="button">Open Saved</button>
+          <button id="fitBtn" class="button" type="button">Fit Drawing</button>
+          <button id="scale1Btn" class="button scale-point-button" type="button">Scale 1</button>
+          <button id="scale2Btn" class="button scale-point-button" type="button">Scale 2</button>
+
+          <label class="more-field">DXF units
+            <select id="unitSelect">
+              <option value="auto">Auto</option>
+              <option value="in">Inches</option>
+              <option value="ft">Feet</option>
+              <option value="mm">Millimeters</option>
+              <option value="cm">Centimeters</option>
+              <option value="m">Meters</option>
+            </select>
+          </label>
+
+          <button id="exportCsvBtn" class="button" type="button">Export CSV</button>
+          <button id="backupProjectBtn" class="button" type="button">Download Project Backup</button>
+          <button id="importProjectBtn" class="button" type="button">Import Project Backup</button>
+          <input id="projectImportFile" type="file" hidden>
+        </div>
+      </details>
+    </div>
+  </header>
+
+  <main class="app-grid">
+    <section class="viewer-card">
+      <div class="viewer-toolbar compact-viewer-toolbar">
+        <div id="fileStatus">No DXF loaded</div>
+
+        <div class="viewer-area-temp-actions">
+          <button id="placeDoorBtn" class="mini-tool-button" type="button" aria-pressed="false" title="Toggle continuous door placement">DOOR</button>
+          <button id="areaSelectBtn" class="mini-tool-button area-select-button" type="button">AREA SELECT</button>
+          <button id="closeAreaBtn" class="mini-tool-button area-close-button" type="button" disabled>CLOSE AREA</button>
+          <button id="clearTempAreaBtn" class="mini-tool-button area-clear-button" type="button" disabled>CLEAR</button>
+        </div>
+
+        <details id="doorLayersMenu" class="viewer-options-menu">
+          <summary class="mini-tool-button viewer-options-summary">DOORS ▾</summary>
+          <div class="viewer-options-panel door-layers-panel">
+            <strong>Door type layers</strong>
+            <div class="layer-actions">
+              <button id="showAllDoorLayersBtn" class="mini-tool-button" type="button">Show all</button>
+              <button id="hideAllDoorLayersBtn" class="mini-tool-button" type="button">Hide all</button>
+            </div>
+            <div id="doorLayerStatus" class="muted" role="status"></div>
+            <div id="doorLayersList" class="wall-layers-list"></div>
+            <small class="muted">Only isolates one type. Door labels show type + instance. These filters affect door marks only; quantities stay unchanged. Compare with the source drawing to check for missing doors.</small>
+          </div>
+        </details>
+        <details id="wallLayersMenu" class="viewer-options-menu">
+          <summary class="mini-tool-button viewer-options-summary">LAYERS ▾</summary>
+          <div class="viewer-options-panel wall-layers-panel">
+            <strong>Wall type layers</strong>
+            <div class="layer-actions">
+              <button id="showAllLayersBtn" class="mini-tool-button" type="button">Show all</button>
+              <button id="hideAllLayersBtn" class="mini-tool-button" type="button">Hide all</button>
+            </div>
+            <div id="wallLayersList" class="wall-layers-list"></div>
+            <small class="muted">Material Summary totals visible layers. All walls remain saved. Original drawing lines remain.</small>
+          </div>
+        </details>
+        <details id="viewerOptionsMenu" class="viewer-options-menu">
+          <summary class="mini-tool-button viewer-options-summary">VIEW ▾</summary>
+          <div class="viewer-options-panel">
+            <label>Active type
+              <select id="activeWallTypeSelect">
+                <option value="">Unassigned</option>
+              </select>
+            </label>
+            <label title="Solid: studs; hollow: above-door cripples; purple: metal jambs; orange: wood jambs"><input id="showStudDots" type="checkbox" checked> Stud dots</label>
+            <button id="findSelectedBtn" class="mini-tool-button" type="button" disabled>FIND</button>
+            <button id="deleteSelectedBtn" class="mini-tool-button delete-mini" type="button" disabled>DELETE</button>
+            <button id="fullscreenBtn" class="mini-tool-button fullscreen-main" type="button" aria-pressed="false">⛶ FULL SCREEN</button>
+            <div class="viewer-option-status">
+              <span id="scaleBadge" class="badge">Scale: DXF units</span>
+              <span id="wallCountBadge" class="badge">0 walls</span>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div id="fullScreenTools" class="fullscreen-tools" aria-label="Full-screen wall tools">
+        <button id="fsWallBtn" class="button" type="button" hidden aria-hidden="true">WALL</button>
+        <button id="fsCeilingBtn" class="button" type="button">CEILING ▦</button>
+         <button id="fsTraceBtn" class="button" type="button" aria-pressed="false">TRACE ▶</button>
+        <button id="fsLockBtn" class="button" type="button" hidden aria-hidden="true">TRACE LOCK</button>
+        <button id="fsOrthoBtn" class="button" type="button">ORTHO</button>
+        <button id="fsAreaSelectBtn" class="button" type="button">AREA SELECT</button>
+        <button id="fsCloseAreaBtn" class="button" type="button" disabled>CLOSE AREA</button>
+        <button id="fsClearTempAreaBtn" class="button" type="button" disabled>CLEAR</button>
+        <span id="fsTypeBadge" class="current-type-badge" role="status">TYPE: Unassigned</span>
+        <span id="fsCurrentTypeBadge" class="current-type-badge" role="status">TYPE: Unassigned</span>
+        <button id="fsFitBtn" class="button" type="button">Fit</button>
+        <button id="fsExitBtn" class="button" type="button">Exit Full Screen</button>
+      </div>
+      <div id="canvasWrap">
+        <canvas id="dxfCanvas"></canvas>
+        <div id="emptyState" class="empty-state">
+          <strong>Open a DXF drawing</strong>
+          <span>Then tap a wall line to create a takeoff item.</span>
+        </div>
+      </div>
+
+      <div id="hintbar" class="hintbar">Tap wall • Drag pan • Pinch zoom</div>
+    </section>
+
+    <aside id="takeoffPanels" class="side-panel" hidden>
+      <div class="panel-collapse-toolbar">
+        <strong>Takeoff options</strong>
+        <button id="collapsePanelsBtn" class="mini-tool-button" type="button">Collapse</button>
+        <button id="expandPanelsBtn" class="mini-tool-button" type="button">Expand</button>
+        <button id="closeTakeoffPanelsBtn" class="mini-tool-button" type="button" aria-label="Close takeoff options">✕</button>
+      </div>
+
+      <section id="ceilingPanel" class="panel ceiling-panel" hidden>
+       <div class="panel-heading"><h2>ACT + Rigid X Ceiling Takeoff</h2><button id="ceilingHideBtn" class="text-button" type="button">Hide</button></div>
+       <p class="muted">Ceiling already drawn? Pick its closed DXF outline, or tap two opposite corners of a rectangular room. Use TRACE for irregular rooms. A two-finger pinch zooms the plan without changing actual framing or sheet dimensions.</p>
+       <div class="form-actions ceiling-action-row"><button id="ceilingPickBtn" class="button grow" type="button">PICK DXF OUTLINE</button><button id="ceilingRectBtn" class="button grow" type="button">2 CORNERS</button></div>
+       <div class="form-actions"><button id="ceilingTraceBtn" class="button primary grow" type="button">+ NEW CEILING AREA</button><button id="ceilingCloseBtn" class="button" type="button" disabled>CLOSE CEILING</button></div>
+       <label>Ceiling area<select id="ceilingSelect"><option value="">New / none</option></select></label>
+       <div class="field-row"><label>Ceiling #<input id="ceilingNumber" value="C-001" maxlength="24"></label><label>Area / Room name<input id="ceilingName" value="ACT-1" maxlength="80"></label></div>
+       <div class="field-row"><label>Ceiling system<select id="ceilingSystem"><option value="act">ACT — exposed grid</option><option value="rigidx">RIGID X — drywall suspension grid</option></select></label><label>Waste percent<input id="ceilingWaste" type="number" value="5" min="0" max="100" step="0.5"></label></div>
+       <div id="actCeilingOptions"><label>ACT tile size<select id="ceilingTile"><option value="2x2">2′ × 2′</option><option value="2x4">2′ × 4′</option></select></label></div>
+       <div id="rigidCeilingOptions" class="rigid-ceiling-options" hidden>
+         <div class="ceiling-divider">RIGID X FRAMING LAYOUT</div>
+         <div class="field-row"><label>Main runner spacing<select id="rigidMainSpacing"><option value="4">4′ OC / 4′ tees</option><option value="6">6′ OC / 6′ tees</option></select></label><label>Cross tee spacing<select id="rigidCrossSpacing"><option value="16">16″ OC</option><option value="24" selected>24″ OC</option></select></label></div>
+         <label>Hanger wire spacing<select id="rigidWireSpacing"><option value="48">48″ OC</option><option value="36">36″ OC</option><option value="24">24″ OC</option></select></label>
+         <div class="ceiling-divider">LIVE DRYWALL SHEET LAYOUT</div>
+         <div class="field-row"><label>Sheet width (feet)<input id="boardWidth" type="number" value="4" min="2" max="6" step="0.5"></label><label>Sheet length (feet)<input id="boardLength" type="number" value="8" min="4" max="20" step="1" list="boardLengthOptions"><datalist id="boardLengthOptions"><option value="8"><option value="10"><option value="12"><option value="14"><option value="16"></datalist></label></div>
+         <div class="field-row"><label>Board thickness<select id="boardThickness"><option value="5/8">5/8″</option><option value="1/2">1/2″</option></select></label><label>Board layers<select id="boardLayers"><option value="1">1 layer</option><option value="2">2 layers</option></select></label></div>
+         <div class="field-row"><label>Sheet direction<select id="boardRotation"><option value="0">Length along grid X</option><option value="90">Length along grid Y</option></select></label><label class="checkline"><input type="checkbox" id="boardStagger" checked> Stagger joints (½ sheet)</label></div>
+         <div class="field-row"><label>Drywall X offset (feet)<input id="boardOffsetX" type="number" value="0" step="0.25"></label><label>Drywall Y offset (feet)<input id="boardOffsetY" type="number" value="0" step="0.25"></label></div>
+         <div class="field-row"><label class="checkline"><input id="showRigidFraming" type="checkbox" checked> Show framing grid</label><label class="checkline"><input id="showBoardLayout" type="checkbox" checked> Show drywall sheet layout</label></div>
+         <label class="checkline"><input type="checkbox" id="showBoardNumbers" checked> Show drywall sheet locations as G1, G2, ...</label>
+         <small class="muted">Amber = 12′ mains; cyan = cross tees; purple dashed = gypsum sheet joints. Board offsets move sheets relative to framing; MOVE GRID drags both together. 2nd board layer is counted but only the first-layer layout is shown. Check that every board joint has support.</small>
+       </div>
+       <label>Rotation degrees<input id="ceilingAngle" type="number" value="0" step="1"></label>
+       <div class="field-row"><label>Grid X offset (feet)<input id="ceilingOffsetX" type="number" value="0" step="0.25"></label><label>Grid Y offset (feet)<input id="ceilingOffsetY" type="number" value="0" step="0.25"></label></div>
+       <div class="form-actions"><button id="ceilingShiftLeft" class="button grow" type="button">← X 6″</button><button id="ceilingShiftRight" class="button grow" type="button">X 6″ →</button></div>
+       <div class="form-actions"><button id="ceilingShiftDown" class="button grow" type="button">↓ Y 6″</button><button id="ceilingShiftUp" class="button grow" type="button">Y 6″ ↑</button></div>
+       <button id="ceilingMoveBtn" class="button ceiling-move-button" type="button" aria-pressed="false">MOVE GRID: OFF</button>
+       <small class="muted">Turn MOVE GRID on, then drag inside the selected ceiling to slide its grid over the existing RCP. Turn it off to pan the drawing. Pinch always zooms the plan.</small>
+       <label class="checkline"><input type="checkbox" id="ceilingShowGrid" checked> Show ceiling outlines, labels, and live grid on drawing</label>
+       <div id="ceilingStats" class="ceiling-stats muted">Create a ceiling area to calculate materials.</div>
+       <div class="ceiling-markups-wrap"><div class="panel-heading"><h3>Ceiling Markups</h3><span id="ceilingMarkupsCount" class="badge">0</span></div><div class="table-wrap"><table class="ceiling-markups-table"><thead><tr><th>#</th><th>Area</th><th>Grid</th><th>SF</th><th>Actions</th></tr></thead><tbody id="ceilingMarkupsBody"></tbody></table></div></div>
+       <div class="form-actions"><button id="ceilingDelete" class="button danger grow" type="button">Delete selected area</button><button id="ceilingExport" class="button grow" type="button">Ceiling CSV</button><button id="ceilingExportPdf" class="button primary grow" type="button">Ceiling PDF</button></div>
+       <small class="muted">ACT uses 4′ mains, 4′ tees at 2′, and 2′ infill for 2×2. Rigid X uses selected 4′/6′ main-and-tee layout with 16″/24″ cross spacing. All framing and board quantities are conceptual estimates, not approved installation layouts. Verify manufacturer/span/load/UL requirements, actual drywall joint support, edge cuts, bracing, fixtures and openings.</small>
+      </section>
+      <section id="calibrationPanel" class="panel calibration-panel setup-panel-hidden">
+        <div class="panel-heading">
+          <h2>Scale Calibration</h2>
+          <button id="resetCalibrationBtn" class="text-button hidden" type="button">Reset</button>
+        </div>
+        <div id="calibrationStatus" class="muted calibration-copy">
+          Set Scale 1 and Scale 2 on a known dimension, then enter the real distance.
+        </div>
+        <div id="calibrationForm" class="calibration-form">
+          <div class="scale-point-status">
+            <div><span>Scale 1</span><strong id="scale1Status">Not set</strong></div>
+            <div><span>Scale 2</span><strong id="scale2Status">Not set</strong></div>
+          </div>
+          <div class="calibration-measured">
+            <span>Current measured distance</span>
+            <strong id="calibrationMeasured">—</strong>
+          </div>
+          <div class="field-row">
+            <label>Actual feet
+              <input id="calibrationFeet" type="number" min="0" step="1" inputmode="numeric" value="20">
+            </label>
+            <label>Actual inches
+              <input id="calibrationInches" type="number" min="0" step="0.0625" inputmode="decimal" value="0">
+            </label>
+          </div>
+          <div class="form-actions">
+            <button id="applyCalibrationBtn" class="button primary grow" type="button" disabled>Apply Calibration</button>
+            <button id="cancelCalibrationBtn" class="button" type="button">Cancel Point</button>
+          </div>
+        </div>
+      </section>
+
+      <details id="selectedWallPanel" class="panel collapsible-panel tool-priority">
+  <summary class="collapsible-summary">
+    <span>Selected Wall</span>
+    <span class="collapse-chevron">▾</span>
+  </summary>
+  <div class="collapsible-body panel-scroll-body">
+        <div id="selectionEmpty" class="muted">Select a line in the drawing.</div>
+
+        <form id="wallForm" class="wall-form hidden">
+          <div class="field-row">
+            <label>Wall #
+              <input id="wallNumber" type="text" autocomplete="off">
+            </label>
+            <label>Length
+              <input id="wallLength" type="text" readonly>
+            </label>
+          </div>
+
+          <label>Wall Type
+            <select id="wallTypeSelect">
+              <option value="">Unassigned</option>
+            </select>
+          </label>
+
+          <div class="field-row">
+            <label>Height
+              <select id="wallHeight">
+                <option value="8">8'-0"</option>
+                <option value="9">9'-0"</option>
+                <option value="10" selected>10'-0"</option>
+                <option value="12">12'-0"</option>
+                <option value="14">14'-0"</option>
+                <option value="16">16'-0"</option>
+                <option value="18">18'-0"</option>
+                <option value="20">20'-0"</option>
+              </select>
+            </label>
+            <label>Stud size
+              <select id="studSize">
+                <option>1-5/8"</option>
+                <option>2-1/2"</option>
+                <option selected>3-5/8"</option>
+                <option>4"</option>
+                <option>6"</option>
+                <option>8"</option>
+                <option>10"</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="field-row">
+            <label>Gauge
+              <select id="gauge">
+                <option>25ga</option>
+                <option selected>20ga</option>
+                <option>18ga</option>
+                <option>16ga</option>
+                <option>14ga</option>
+              </select>
+            </label>
+            <label>Spacing
+              <select id="spacing">
+                <option value="12">12" O.C.</option>
+                <option value="16" selected>16" O.C.</option>
+                <option value="24">24" O.C.</option>
+              </select>
+            </label>
+          </div>
+
+          <label>Top track
+            <select id="topTrack">
+              <option selected>Standard</option>
+              <option>Slip / Deep Leg</option>
+              <option>Deflection</option>
+              <option>None</option>
+            </select>
+          </label>
+
+          <label>Bottom track
+            <select id="bottomTrack">
+              <option selected>Standard</option>
+              <option>None</option>
+            </select>
+          </label>
+
+          <div class="field-row">
+            <label class="checkline">
+              <input id="doubleEnds" type="checkbox">
+              Double end studs
+            </label>
+            <label>Waste %
+              <input id="wastePercent" type="number" min="0" max="30" step="1" value="0">
+            </label>
+          </div>
+
+          <div class="calc-box">
+            <div><span>Stud quantity</span><strong id="calcStuds">—</strong></div>
+            <div><span>Bottom track</span><strong id="calcBottom">—</strong></div>
+            <div><span>Top track</span><strong id="calcTop">—</strong></div>
+          </div>
+          <section class="wall-doors-section">
+            <h3>Doors in this wall</h3>
+            <button id="addWallDoorBtn" class="button compact-button" type="button">+ Door at wall center</button>
+            <div id="wallDoorsList" class="summary-list"></div>
+          </section>
+
+          <div class="form-actions">
+            <button type="submit" class="button primary grow">Save Wall</button>
+            <button id="deleteWallBtn" type="button" class="button danger">Delete</button>
+          </div>
+        </form>
+  </div>
+</details>
+
+
+      <details id="wallTypePanel" class="panel collapsible-panel">
+  <summary class="collapsible-summary">
+    <span>Wall Type Library</span>
+    <span class="collapse-chevron">▾</span>
+  </summary>
+  <div class="collapsible-body panel-scroll-body">
+<div class="wall-library-controls">
+          <strong id="wallLibraryName"></strong>
+          <div id="wallLibraryStatus" class="muted" role="status"></div>
+          <div class="form-actions">
+            <button id="toggleWallLibraryLockBtn" class="button" type="button">Unlock Library</button>
+            <button id="newWallLibraryBtn" class="button" type="button">New Project Library</button>
+            <button id="renameWallLibraryBtn" class="button" type="button">Rename</button>
+          </div>
+          <small class="muted">Save Project keeps this library with the job. Opening a project restores its own library. Lock protects type definitions; you can still use types for takeoff.</small>
+        </div>
+<div class="panel-heading panel-heading-no-title">
+          <div class="panel-heading-actions">
+            <button id="newAssemblyBtn" class="button compact-button" type="button">New Assembly</button>
+            <button id="editActiveWallTypeBtn" class="button compact-button" type="button" disabled>Edit Active</button>
+            <span id="wallTypeCountBadge" class="badge">0 types</span>
+          </div>
+        </div>
+        <div class="muted type-help">
+          Save a framing assembly once, then reuse it while selecting or tracing walls.
+        </div>
+        <label>Type name
+          <input id="wallTypeName" type="text" autocomplete="off" placeholder="Example: W1, W2, Shaft Wall">
+        </label>
+        <div class="form-actions type-actions">
+          <button id="saveWallTypeBtn" class="button primary grow" type="button">Save / Update Type</button>
+          <button id="deleteWallTypeBtn" class="button danger" type="button">Delete Type</button>
+        </div>
+        <div id="wallTypeLibraryList" class="summary-list muted wall-type-scroll-list">No wall types saved yet.</div>
+  </div>
+</details>
+
+      <details id="markupsPanel" class="panel collapsible-panel">
+  <summary class="collapsible-summary"><span>Takeoff Markups</span><span class="collapse-chevron">▾</span></summary>
+  <div class="collapsible-body panel-scroll-body">
+<div class="panel-heading">
+          <div>
+            <h2>Takeoff Markups</h2>
+            <div class="muted markups-subtitle">Select, edit, find, or delete individual walls.</div>
+          </div>
+          <span id="markupsCountBadge" class="badge">0 items</span>
+        </div>
+
+        <div class="markups-toolbar">
+          <label>Show type
+            <select id="markupsTypeFilter">
+              <option value="">All types</option>
+            </select>
+          </label>
+          <button id="collapseMarkupGroupsBtn" class="button" type="button">Hide Groups</button>
+          <button id="expandMarkupGroupsBtn" class="button" type="button">Show Groups</button>
+          <button id="undoLastBtn" class="button" type="button" disabled>Undo Last</button>
+          <button id="clearWallsBtn" class="button danger-soft" type="button">Clear All</button>
+        </div>
+
+        <div class="table-wrap markups-table-wrap">
+          <table id="wallTable" class="markups-table">
+            <thead>
+              <tr>
+                <th>Wall</th>
+                <th>Type</th>
+                <th>Length</th>
+                <th>Ht.</th>
+                <th>Stud</th>
+                <th>Qty</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+  </div>
+</details>
+
+
+      <details class="panel collapsible-panel">
+  <summary class="collapsible-summary"><span>Wall Type Totals</span><span class="collapse-chevron">▾</span></summary>
+  <div class="collapsible-body panel-scroll-body">
+<div id="wallTypeTotals" class="summary-list muted">No walls saved yet.</div>
+  </div>
+</details>
+
+      <details class="panel collapsible-panel">
+  <summary class="collapsible-summary"><span>Material Summary</span><span class="collapse-chevron">▾</span></summary>
+  <div class="collapsible-body panel-scroll-body">
+<div id="temporaryAreaTotals" class="temporary-area-totals muted">
+      No temporary area closed.
+    </div>
+    <div class="muted">Materials for visible layers only. A closed AREA selection also limits these materials.</div>
+    <div id="materialSummary" class="summary-list muted">No walls saved yet.</div>
+    <button id="exportMaterialPdfBtn" class="button primary material-pdf-button" type="button">DOWNLOAD MATERIAL SUMMARY PDF</button>
+    <small class="muted">Includes visible wall materials and saved ACT + Rigid X ceiling framing and drywall materials.</small>
+  </div>
+</details>
+      <details class="panel collapsible-panel" open>
+        <summary class="collapsible-summary"><span>Door Type Counts</span><span class="collapse-chevron">▾</span></summary>
+        <div class="collapsible-body panel-scroll-body"><p class="muted">All project doors, including hidden layers. Different saved details appear separately.</p><div id="doorTypeCounts"></div></div>
+      </details>
+    </aside>
+  </main>
+
+
+  <div id="wallTypeEditorDialog" class="project-modal hidden" role="dialog" aria-modal="true" aria-labelledby="wallTypeEditorTitle">
+    <div class="project-dialog-card wall-type-editor-card">
+      <div class="panel-heading">
+        <h2 id="wallTypeEditorTitle">Edit Wall Type</h2>
+        <button id="closeWallTypeEditorBtn" class="button" type="button">✕</button>
+      </div>
+
+      <div class="muted project-note">Reusable wall assembly. Studs and track calculate from the framing settings below.</div>
+
+      <label>Type name
+        <input id="editTypeName" type="text" maxlength="80" autocomplete="off">
+      </label>
+
+      <div class="field-row">
+        <label>Height
+          <select id="editTypeHeight">
+            <option value="8">8'-0"</option><option value="9">9'-0"</option><option value="10">10'-0"</option>
+            <option value="12">12'-0"</option><option value="14">14'-0"</option><option value="16">16'-0"</option>
+            <option value="18">18'-0"</option><option value="20">20'-0"</option>
+          </select>
+        </label>
+        <label>Stud size
+          <select id="editTypeStudSize">
+            <option>1-5/8"</option><option>2-1/2"</option><option>3-5/8"</option><option>4"</option>
+            <option>6"</option><option>8"</option><option>10"</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="field-row">
+        <label>Gauge
+          <select id="editTypeGauge">
+            <option>25ga</option><option>20ga</option><option>18ga</option><option>16ga</option><option>14ga</option>
+          </select>
+        </label>
+        <label>Spacing
+          <select id="editTypeSpacing">
+            <option value="12">12" O.C.</option><option value="16">16" O.C.</option><option value="24">24" O.C.</option>
+          </select>
+        </label>
+      </div>
+
+      <label>Top track
+        <select id="editTypeTopTrack">
+          <option>Standard</option><option>Slip / Deep Leg</option><option>Deflection</option><option>None</option>
+        </select>
+      </label>
+
+      <label>Bottom track
+        <select id="editTypeBottomTrack">
+          <option>Standard</option><option>None</option>
+        </select>
+      </label>
+
+      <div class="field-row">
+        <label class="checkline editor-checkline">
+          <input id="editTypeDoubleEnds" type="checkbox"> Double end studs
+        </label>
+        <label>Waste %
+          <input id="editTypeWaste" type="number" min="0" max="30" step="1" value="0">
+        </label>
+      </div>
+
+      <section class="assembly-section">
+        <h3>Assembly materials</h3>
+        <p class="muted">Net wall area deducts door rough openings. Use a factor of 2 for two faces or two layers. Choose multiply, coverage, or spacing formulas. Spacing uses inches and includes a fastener at both ends of each run; rates remain yours to set.</p>
+        <div class="assembly-add-actions">
+          <label class="parts-library-picker">Parts library<select id="assemblyLibrarySelect"></select></label>
+          <button id="addLibraryPartBtn" class="button compact-button" type="button">+ Add Selected Part</button>
+          <button id="addDrywallPartBtn" class="button compact-button" type="button">+ Drywall</button>
+          <button id="addInsulationPartBtn" class="button compact-button" type="button">+ Insulation</button>
+          <button id="addCustomPartBtn" class="button compact-button" type="button">+ Custom Part</button>
+          <button id="addFinishRulesBtn" class="button compact-button" type="button">+ My Compound & Tape Rules</button>
+        </div>
+        <div id="assemblyPartsEditor"></div>
+        <datalist id="materialFolders"></datalist>
+        <div id="partsLibraryStatus" class="muted" role="status"></div>
+        <div id="assemblyPreview" class="summary-list" aria-live="polite"></div>
+        <p class="muted">Your rules: compound = installed drywall SF ÷ 320 per 5-gallon bucket; drywall screws = installed SF × 1; concrete nails = track LF ÷ 10 × 8; tape = layout joints and edges ÷ 250 LF per roll. Add drywall board parts first. Framing-screw and door-nail rates remain yours to set. Tape follows board faces/layers; edit the material basis/factor when only outer layers receive finishing.</p>
+      </section>
+
+      <label class="editor-update-existing">
+        <input id="editTypeUpdateExisting" type="checkbox" checked>
+        Update all existing walls assigned to this wall type
+      </label>
+
+      <div id="wallTypeEditorStatus" class="project-storage-status muted" role="status" aria-live="polite"></div>
+
+      <div class="project-dialog-actions">
+        <button id="saveWallTypeEditorBtn" class="button primary grow" type="button">Save Changes</button>
+        <button id="deleteWallTypeEditorBtn" class="button danger" type="button">Delete Type</button>
+        <button id="cancelWallTypeEditorBtn" class="button" type="button">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="projectDialog" class="project-modal hidden" role="dialog" aria-modal="true" aria-labelledby="projectDialogTitle">
+    <div class="project-dialog-card">
+      <div class="panel-heading">
+        <h2 id="projectDialogTitle">Projects</h2>
+        <button id="closeProjectDialogBtn" class="button" type="button">✕</button>
+      </div>
+      <div class="muted project-note">Saved on this browser/device. Download a backup to keep a portable copy.</div>
+      <label>Project name
+        <input id="projectNameInput" type="text" maxlength="100" placeholder="Example: Macon - Building A" autocomplete="off">
+      </label>
+      <div class="project-dialog-actions">
+        <button id="confirmSaveProjectBtn" class="button primary" type="button">Save Current Project</button>
+        <button id="dialogBackupProjectBtn" class="button" type="button">Download Backup</button>
+      </div>
+      <div id="projectStorageStatus" class="project-storage-status muted" role="status" aria-live="polite"></div>
+      <div class="project-list-heading">Saved projects</div>
+      <div id="savedProjectsList" class="saved-projects-list"></div>
+    </div>
+  </div>
+  <div id="doorDialog" class="project-modal hidden" role="dialog" aria-modal="true" aria-labelledby="doorDialogTitle">
+    <form id="doorForm" class="project-dialog-card">
+      <div class="panel-heading"><h2 id="doorDialogTitle">Door opening</h2><button id="closeDoorDialogBtn" type="button" class="button">✕</button></div>
+      <p class="muted">Enter rough opening dimensions. Jamb pieces below are full wall height. The opening replaces regular stud positions; short studs above the header follow the wall's stud grid.</p>
+      <label>Door type<select id="doorTypeSelect"><option value="">Custom / unassigned</option></select></label>
+      <div class="field-row"><label>Type name<input id="doorTypeName" maxlength="60" placeholder="Example: D1 — 3 ft metal jamb"></label><button id="saveDoorTypeBtn" type="button" class="button">Save / Update Type</button></div>
+      <small class="muted">Save dimensions and framing once. New doors reuse the last selected type. Updating a type affects future placements; existing doors keep their details.</small>
+      <label>Door label<input id="doorLabel" maxlength="60" required></label>
+      <div class="field-row"><label>Center from wall start (ft)<input id="doorCenterFt" type="number" step="any" min="0" required></label>
+      <label>Rough width (ft)<input id="doorWidthFt" type="number" step="any" min="0.01" value="3" required></label></div>
+      <div class="field-row"><label>Rough height (ft)<input id="doorHeightFt" type="number" step="any" min="0.01" value="7" required></label>
+      <label>Jamb material<select id="doorJambMaterial"><option value="metal">Metal studs</option><option value="wood">Wood jamb pieces</option></select></label></div>
+      <div class="field-row"><label>Jamb pieces per side<select id="doorJambsPerSide" required><option value="">Choose…</option><option value="1">1 each side (2 total)</option><option value="2">2 each side (4 total)</option><option value="3">3 each side (6 total)</option></select></label>
+      <label>Header track runs<select id="doorHeaderRuns"><option value="0">0</option><option value="1" selected>1</option><option value="2">2</option></select></label></div>
+      <label>Header depth above rough opening (in)<input id="doorHeaderDepthIn" type="number" step="any" min="0" value="0" required></label>
+      <section class="door-sketch-section">
+        <div id="doorSketch" aria-live="off"></div>
+        <small class="muted">Front elevation near this opening. Blue: studs · green: cripples · purple: metal jambs · orange: wood · yellow: header track. Member thickness and multiple runs are schematic. Current header options are track-run count and depth.</small>
+      </section>
+      <div id="doorFormulaPreview" class="muted" aria-live="polite"></div>
+      <div id="doorStatus" class="project-storage-status" role="status"></div>
+      <div class="project-dialog-actions"><button type="submit" class="button primary">Save Door</button><button id="cancelDoorBtn" class="button" type="button">Cancel</button></div>
+    </form>
+  </div>
+  <script src="quantities.js?v=ceiling-v3"></script>
+  <script src="door-sketch.js?v=ceiling-v3"></script>
+  <script src="ceiling-grid.js?v=ceiling-v3"></script>
+  <script src="drywall-ceiling.js?v=ceiling-v3"></script>
+  <script src="pdf-report.js?v=ceiling-v3"></script>
+  <script src="app.js?v=ceiling-v3"></script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b0f14">
+<meta name="mobile-web-app-capable" content="yes">
+<title>ATLAS Estimating — Android</title>
+<link rel="manifest" href="./manifest-android.webmanifest">
+<link rel="icon" sizes="192x192" href="./atlas-android-192.png">
+<style>
+:root{color-scheme:dark;--st:env(safe-area-inset-top,0px);--sr:env(safe-area-inset-right,0px);--sb:env(safe-area-inset-bottom,0px);--sl:env(safe-area-inset-left,0px);--vh:1vh}
+*{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#0b0f14;overscroll-behavior:none;touch-action:manipulation}
+#atlasFrame{position:fixed;top:var(--st);right:var(--sr);bottom:var(--sb);left:var(--sl);width:calc(100% - var(--sl) - var(--sr));height:calc((var(--vh)*100) - var(--st) - var(--sb));border:0;background:#0b0f14}
+#installBtn{position:fixed;z-index:20;top:calc(var(--st) + 6px);right:calc(var(--sr) + 7px);min-height:30px;padding:5px 9px;border:1px solid #435064;border-radius:8px;background:rgba(16,21,29,.94);color:#e8edf4;font:800 11px/1 system-ui,sans-serif;box-shadow:0 3px 12px rgba(0,0,0,.3)}
+#installBtn[hidden],#installHelp[hidden]{display:none}
+#installHelp{position:fixed;z-index:30;inset:0;display:grid;place-items:center;padding:18px;background:rgba(0,0,0,.6);backdrop-filter:blur(5px)}
+.card{width:min(460px,100%);max-height:calc(100dvh - 36px);overflow-y:auto;border:1px solid #394556;border-radius:14px;background:#141a22;color:#e9eef5;padding:16px;font:14px/1.45 system-ui,sans-serif;box-shadow:0 20px 55px rgba(0,0,0,.5)}
+.card h2{margin:0 0 8px;font-size:18px}.card p{color:#bac4d0}.card button{width:100%;min-height:42px;border:1px solid #4b5a70;border-radius:9px;background:#202a37;color:#fff;font-weight:800}
+</style>
+</head>
+<body>
+<iframe id="atlasFrame" src="./index.html?android=ceiling-v3" title="ATLAS Estimating" allow="fullscreen"></iframe>
+<button id="installBtn" type="button">INSTALL APP</button>
+<div id="installHelp" hidden><div class="card">
+<h2>Install ATLAS on Android</h2>
+<ol>
+<li>Open this page in <strong>Chrome</strong>.</li>
+<li>Tap <strong>INSTALL APP</strong> if Chrome offers it.</li>
+<li>If not, tap Chrome's <strong>⋮</strong> menu.</li>
+<li>Choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.</li>
+</ol>
+<p>Open ATLAS once while online so the core files can cache for offline reopening.</p>
+<button id="closeInstallHelp" type="button">Close</button>
+</div></div>
+<script>
+(()=>{
+"use strict";
+const root=document.documentElement,frame=document.getElementById("atlasFrame"),installBtn=document.getElementById("installBtn"),help=document.getElementById("installHelp"),closeHelp=document.getElementById("closeInstallHelp");
+let deferredPrompt=null;
+function setVH(){const h=window.visualViewport?window.visualViewport.height:window.innerHeight;root.style.setProperty("--vh",`${h*.01}px`)}
+function standalone(){return window.matchMedia("(display-mode: standalone)").matches}
+function installOpenSaved(){
+ try{
+  const doc=frame.contentDocument;if(!doc)return;
+  const open=doc.getElementById("openDxfBtn"),saved=doc.getElementById("openProjectBtn");
+  if(!open||!saved)return;
+  saved.textContent="Open Saved Project";
+  saved.title="Open an existing project saved on this Android device";
+  if(!doc.getElementById("androidOpenSavedBtn")){
+   const b=doc.createElement("button");
+   b.id="androidOpenSavedBtn";b.type="button";b.className=open.className||"button";b.textContent="OPEN SAVED";
+   b.title="Open an existing project saved on this Android device";
+   b.addEventListener("click",()=>saved.click());
+   open.insertAdjacentElement("afterend",b);
+  }
+ }catch(e){console.warn("OPEN SAVED shortcut unavailable",e)}
+}
+setVH();
+window.addEventListener("resize",setVH,{passive:true});
+window.addEventListener("orientationchange",()=>setTimeout(setVH,80),{passive:true});
+window.visualViewport?.addEventListener("resize",setVH,{passive:true});
+frame.addEventListener("load",()=>{installOpenSaved();setTimeout(installOpenSaved,100);setTimeout(installOpenSaved,500)});
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredPrompt=e;if(!standalone())installBtn.hidden=false});
+window.addEventListener("appinstalled",()=>{deferredPrompt=null;installBtn.hidden=true;help.hidden=true});
+installBtn.addEventListener("click",async()=>{
+ if(deferredPrompt){deferredPrompt.prompt();try{await deferredPrompt.userChoice}catch(_){}deferredPrompt=null}
+ else help.hidden=false;
+});
+closeHelp.addEventListener("click",()=>help.hidden=true);
+help.addEventListener("click",e=>{if(e.target===help)help.hidden=true});
+if(standalone())installBtn.hidden=true;
+window.addEventListener("pageshow",()=>{setVH();try{frame.contentWindow?.dispatchEvent(new Event("resize"));installOpenSaved()}catch(_){}});
+if("serviceWorker"in navigator&&location.protocol==="https:"){
+ window.addEventListener("load",()=>navigator.serviceWorker.register("./sw-android.js",{scope:"./"}).catch(e=>console.warn("Offline cache unavailable",e)));
+}
+})();
+</script>
+</body>
+</html>
