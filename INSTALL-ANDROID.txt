@@ -9,3 +9,5 @@ ATLAS Estimating v2.9.2 — Android fullscreen update
 
 When the browser denies native fullscreen, the program still offers its previous page-filling viewer.
 The fix changes only fullscreen handling and the Android cache version. Existing tape, ceiling, wall, dark/light, and PDF functions remain in the package.
+
+V2.9.3 CHANGE: Saved ceiling badges now show NUMBER over calculated AREA SF.

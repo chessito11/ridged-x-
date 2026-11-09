@@ -4236,11 +4236,25 @@
         const cy=c.points.reduce((n,p)=>n+p.y,0)/c.points.length;
         const center=pointInPolygon({x:cx,y:cy},c.points)?{x:cx,y:cy}:c.points[0];
         const s=worldToScreen(center.x,center.y);
-        ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='bold 13px system-ui';
-        const label=c.number||'C-???',w=ctx.measureText(label).width+18;
-        ctx.fillStyle=active?'#0b4644':'#15272e';ctx.strokeStyle=active?'#7af6d8':'#4b9f96';ctx.lineWidth=1.4;
-        ctx.fillRect(s.x-w/2,s.y-12,w,24);ctx.strokeRect(s.x-w/2,s.y-12,w,24);
-        ctx.fillStyle=active?'#ddfff6':'#a5f1e6';ctx.fillText(label,s.x,s.y);
+        // Two-line takeoff badge: ceiling number above its calculated room SF.
+        // Compute from the calibrated outline directly (rather than re-running the
+        // ceiling material estimator) so labels stay responsive on large drawings.
+        const sqFt=AtlasCeilingGrid.area(c.points)*factor*factor;
+        const areaText=Number.isFinite(sqFt)&&sqFt>0
+          ?`${Number(sqFt.toFixed(1)).toLocaleString('en-US',{maximumFractionDigits:1})} SF`
+          :'— SF';
+        ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
+        const label=c.number||'C-???';
+        ctx.font='bold 13px system-ui';const numberWidth=ctx.measureText(label).width;
+        ctx.font='600 11px system-ui';const areaWidth=ctx.measureText(areaText).width;
+        const badgeWidth=Math.max(numberWidth,areaWidth)+20,badgeHeight=42;
+        ctx.fillStyle=active?'#0b4644':'#15272e';
+        ctx.strokeStyle=active?'#7af6d8':'#4b9f96';ctx.lineWidth=1.4;
+        ctx.fillRect(s.x-badgeWidth/2,s.y-badgeHeight/2,badgeWidth,badgeHeight);
+        ctx.strokeRect(s.x-badgeWidth/2,s.y-badgeHeight/2,badgeWidth,badgeHeight);
+        ctx.fillStyle=active?'#ddfff6':'#a5f1e6';
+        ctx.font='bold 13px system-ui';ctx.fillText(label,s.x,s.y-9);
+        ctx.font='600 11px system-ui';ctx.fillText(areaText,s.x,s.y+10);
         ctx.restore();
       }
     }
