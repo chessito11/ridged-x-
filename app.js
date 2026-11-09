@@ -6,6 +6,12 @@
   const ctx = canvas.getContext("2d");
 
   const WALL_TYPE_STORAGE_KEY = "atlasTakeoffWallTypesV1";
+  const DRAWING_DARK_STORAGE_KEY = "atlasDrawingDarkModeV1";
+  function loadDrawingDark() {
+    try { return localStorage.getItem(DRAWING_DARK_STORAGE_KEY) !== "off"; }
+    catch (_) { return true; }
+  }
+
 
   function loadWallTypes() {
     try {
@@ -31,6 +37,7 @@
     projectName: "",
     savedProjectId: null,
     projectDirty: false,
+    darkDrawing: loadDrawingDark(),
     fullscreenFallback: false,
     fullscreenPersistent: false,
     segments: [],
@@ -413,6 +420,28 @@
     `;
   }
 
+  function applyDrawingTheme() {
+    document.body.classList.toggle('drawing-light', !state.darkDrawing);
+    for (const id of ['drawingDarkBtn', 'fsDrawingDarkBtn']) {
+      const button = $(id);
+      if (!button) continue;
+      button.textContent = state.darkDrawing ? 'DARK ON' : 'DARK OFF';
+      button.setAttribute('aria-pressed', String(state.darkDrawing));
+      button.title = state.darkDrawing ? 'Dark drawing is on; tap for white background' : 'Dark drawing is off; tap for dark background';
+    }
+    draw();
+  }
+
+  function toggleDrawingDark() {
+    state.darkDrawing = !state.darkDrawing;
+    try { localStorage.setItem(DRAWING_DARK_STORAGE_KEY, state.darkDrawing ? 'on' : 'off'); }
+    catch (_) { /* Continue without persistence if device storage is blocked. */ }
+    applyDrawingTheme();
+  }
+
+  $('drawingDarkBtn').addEventListener('click', toggleDrawingDark);
+  $('fsDrawingDarkBtn').addEventListener('click', toggleDrawingDark);
+
   function resizeCanvas() {
     const rect = canvas.getBoundingClientRect();
     const dpr = Math.max(1, window.devicePixelRatio || 1);
@@ -453,7 +482,7 @@
   function draw() {
     const rect = canvas.getBoundingClientRect();
     ctx.clearRect(0, 0, rect.width, rect.height);
-    ctx.fillStyle = "#090b0e";
+    ctx.fillStyle = state.darkDrawing ? "#090b0e" : "#f9fafc";
     ctx.fillRect(0, 0, rect.width, rect.height);
 
     if (!state.segments.length) return;
@@ -473,7 +502,9 @@
       ctx.lineTo(b.x, b.y);
       const inTempArea = state.tempArea.closed && state.tempArea.wallIds.has(s.id);
       ctx.lineWidth = isSelected ? 4 : (wall ? (inTempArea ? 3.2 : 2.4) : 1);
-      ctx.strokeStyle = isSelected ? "#ffd166" : (wall ? (inTempArea ? "#65d68a" : "#4da3ff") : "#d8dde5");
+      ctx.strokeStyle = isSelected ? (state.darkDrawing ? "#ffd166" : "#ab6d00") :
+        (wall ? (inTempArea ? (state.darkDrawing ? "#65d68a" : "#138244") : (state.darkDrawing ? "#4da3ff" : "#136fb8")) :
+        (state.darkDrawing ? "#d8dde5" : "#333d49"));
       ctx.stroke();
 
       if (wall) {
@@ -485,9 +516,9 @@
         const text = wall.wallNumber;
         const metrics = ctx.measureText(text);
         const w = metrics.width + 10;
-        ctx.fillStyle = "#11151b";
+        ctx.fillStyle = state.darkDrawing ? "#11151b" : "#e9f1fa";
         ctx.fillRect(mx - w/2, my - 9, w, 18);
-        ctx.fillStyle = "#9fd0ff";
+        ctx.fillStyle = state.darkDrawing ? "#9fd0ff" : "#115c9b";
         ctx.fillText(text, mx, my);
       }
     }
@@ -680,8 +711,8 @@
         const offset = mark.kind === "end" ? 7 : (i-(mark.count-1)/2)*7;
         ctx.beginPath();
         ctx.arc(x+nx*offset, y+ny*offset, 3, 0, Math.PI*2);
-        ctx.fillStyle = mark.kind === "cripple" ? "#090b0e" : color;
-        ctx.strokeStyle = mark.kind === "cripple" ? color : "#090b0e";
+        ctx.fillStyle = mark.kind === "cripple" ? (state.darkDrawing ? "#090b0e" : "#f9fafc") : color;
+        ctx.strokeStyle = mark.kind === "cripple" ? color : (state.darkDrawing ? "#090b0e" : "#2a3441");
         ctx.lineWidth = 1.2;
         ctx.fill();
         ctx.stroke();
@@ -2526,15 +2557,33 @@
     } catch (_) { /* User can still open/import manually. */ }
   }
 
-  // Persistent viewer focus mode.
-  // We intentionally use the CSS fixed-position fullscreen implementation on every
-  // device. Native browser fullscreen can be dismissed unexpectedly by iPad/Safari
-  // after touch gestures or UI changes.
+  // v2.9.2: use the browser Fullscreen API first (including the Android launcher).
+  // When Android runs this page in its same-origin iframe, fullscreen the iframe
+  // in the outer document, then expand this viewer inside it. This avoids being
+  // trapped within the browser window by a CSS-only "fullscreen" view.
+  // Unsupported browsers retain the original fixed-position fallback.
   const viewerCard = document.querySelector(".viewer-card");
   let fullscreenCenter = null;
+  let fullscreenMode = "none"; // none | native-frame | native-viewer | fallback
+
+  function parentFullscreenFrame() {
+    try {
+      const frame = window.frameElement;
+      return frame && frame.ownerDocument?.defaultView === window.parent ? frame : null;
+    } catch (_) {
+      return null; // e.g. cross-origin hosting; native fullscreen may still work here.
+    }
+  }
+
+  function currentNativeFullscreenMode() {
+    if (document.fullscreenElement === viewerCard) return "native-viewer";
+    const frame = parentFullscreenFrame();
+    if (frame && frame.ownerDocument.fullscreenElement === frame) return "native-frame";
+    return null;
+  }
 
   function isViewerFullscreen() {
-    return !!state.fullscreenPersistent;
+    return fullscreenMode !== "none" || !!currentNativeFullscreenMode();
   }
 
   function captureViewerCenter() {
@@ -2574,34 +2623,86 @@
     $("fsOrthoBtn").textContent = state.trace.ortho ? "ORTHO ✓" : "ORTHO";
   }
 
-  function applyPersistentFullscreen(active) {
-    state.fullscreenPersistent = !!active;
-    state.fullscreenFallback = !!active; // retained for project/state compatibility
-    viewerCard.classList.toggle("fullscreen-fallback", !!active);
-    document.documentElement.classList.toggle("viewer-focus-active", !!active);
-    document.body.classList.toggle("viewer-focus-active", !!active);
+  function applyFullscreenMode(mode) {
+    fullscreenMode = mode;
+    const active = mode !== "none";
+    // CSS fills the child viewer only for the parent-iframe fullscreen or fallback.
+    const useFallback = mode === "native-frame" || mode === "fallback";
+    state.fullscreenPersistent = active;
+    state.fullscreenFallback = useFallback; // retained for state compatibility
+    viewerCard.classList.toggle("fullscreen-fallback", useFallback);
+    document.documentElement.classList.toggle("viewer-focus-active", active);
+    document.body.classList.toggle("viewer-focus-active", active);
     syncFullscreenTools();
-  }
-
-  async function toggleViewerFullscreen(forceState = null) {
-    fullscreenCenter = captureViewerCenter();
-    const next = forceState === null ? !isViewerFullscreen() : !!forceState;
-    applyPersistentFullscreen(next);
     reflowViewerAfterModeChange();
   }
 
-  // If Safari resizes, rotates, hides/reveals browser chrome, or returns from another
-  // app while focus mode is active, re-assert the viewer class instead of exiting.
+  async function toggleViewerFullscreen(forceState = null) {
+    const next = forceState === null ? !isViewerFullscreen() : !!forceState;
+    if (next === isViewerFullscreen()) return;
+    fullscreenCenter = captureViewerCenter();
+    if (!next) {
+      const frame = parentFullscreenFrame();
+      const nativeDoc = document.fullscreenElement === viewerCard
+        ? document
+        : frame?.ownerDocument.fullscreenElement === frame ? frame.ownerDocument : null;
+      if (nativeDoc?.exitFullscreen) {
+        try { await nativeDoc.exitFullscreen(); } catch (_) { /* still exit the local view */ }
+      }
+      applyFullscreenMode("none");
+      return;
+    }
+
+    // The request must be called directly during the button's user gesture.
+    // Fullscreen on the wrapper iframe also permits the child viewer to occupy
+    // the entire physical display on Android Chrome.
+    const frame = parentFullscreenFrame();
+    const target = frame?.requestFullscreen ? frame : viewerCard;
+    if (typeof target.requestFullscreen === "function") {
+      try {
+        await target.requestFullscreen();
+        applyFullscreenMode(currentNativeFullscreenMode() ||
+          (target === frame ? "native-frame" : "native-viewer"));
+        return;
+      } catch (err) {
+        console.warn("ATLAS native fullscreen unavailable; using page fallback", err);
+      }
+    }
+    applyFullscreenMode("fallback");
+  }
+
+  // Esc and browser controls can exit native fullscreen without an ATLAS button.
+  // Keep the toolbar, viewer dimensions, and pan/zoom state synchronized.
+  function handleNativeFullscreenChange() {
+    const nativeMode = currentNativeFullscreenMode();
+    if (nativeMode) {
+      if (fullscreenMode !== nativeMode) {
+        fullscreenCenter = captureViewerCenter();
+        applyFullscreenMode(nativeMode);
+      } else {
+        reflowViewerAfterModeChange();
+      }
+    } else if (fullscreenMode === "native-viewer" || fullscreenMode === "native-frame") {
+      fullscreenCenter = captureViewerCenter();
+      applyFullscreenMode("none");
+    }
+  }
+  document.addEventListener("fullscreenchange", handleNativeFullscreenChange);
+  const frameForEvents = parentFullscreenFrame();
+  if (frameForEvents) {
+    frameForEvents.ownerDocument.addEventListener("fullscreenchange", handleNativeFullscreenChange);
+  }
+
   function preservePersistentFullscreen() {
-    if (!state.fullscreenPersistent) return;
-    if (!viewerCard.classList.contains("fullscreen-fallback")) {
+    if (!isViewerFullscreen()) return;
+    if ((fullscreenMode === "fallback" || fullscreenMode === "native-frame") &&
+        !viewerCard.classList.contains("fullscreen-fallback")) {
       viewerCard.classList.add("fullscreen-fallback");
     }
     document.documentElement.classList.add("viewer-focus-active");
     document.body.classList.add("viewer-focus-active");
     requestAnimationFrame(resizeCanvas);
   }
-
   window.addEventListener("resize", preservePersistentFullscreen);
   window.addEventListener("orientationchange", preservePersistentFullscreen);
   document.addEventListener("visibilitychange", () => {
@@ -2647,7 +2748,7 @@
       draw();
       return;
     }
-    if (e.key === "Escape" && state.fullscreenPersistent) toggleViewerFullscreen(false);
+    if (e.key === "Escape" && fullscreenMode === "fallback") toggleViewerFullscreen(false);
   });
   window.addEventListener("beforeunload", e => {
     if (state.projectDirty && state.segments.length) {
@@ -3264,7 +3365,7 @@
       ctx.fillStyle=color;ctx.font="bold 12px system-ui";ctx.textAlign="center";
       const label=(door.doorType ? door.doorType+" · " : "Custom · ")+door.label;
       const lx=(a.x+b.x)/2+nx*18,ly=(a.y+b.y)/2+ny*18;
-      ctx.save();ctx.strokeStyle="#090b0e";ctx.lineWidth=4;ctx.strokeText(label,lx,ly);ctx.fillText(label,lx,ly);ctx.restore();
+      ctx.save();ctx.strokeStyle=state.darkDrawing?"#090b0e":"#fafbfd";ctx.lineWidth=4;ctx.strokeText(label,lx,ly);ctx.fillText(label,lx,ly);ctx.restore();
     }
   }
 
@@ -4002,17 +4103,20 @@
     if(state.ceilingSelected===c.id)state.ceilingSelected=state.ceilings[0]?.id||null;
     clearCeilingModes();syncCeilingPanel();markProjectDirty();draw();
   }
-  let gypsumCutHatch=null;
+  let gypsumCutHatchDark=null, gypsumCutHatchLight=null;
   function getGypsumCutHatch(){
-    if(gypsumCutHatch)return gypsumCutHatch;
+    const light=!state.darkDrawing;
+    if(light && gypsumCutHatchLight)return gypsumCutHatchLight;
+    if(!light && gypsumCutHatchDark)return gypsumCutHatchDark;
     const tile=document.createElement('canvas');tile.width=12;tile.height=12;
     const p=tile.getContext('2d');
-    p.strokeStyle='rgba(230,210,255,.40)';p.lineWidth=.85;
+    p.strokeStyle=light?'rgba(100,50,159,.46)':'rgba(230,210,255,.40)';p.lineWidth=.85;
     p.beginPath();
     for(let x=-12;x<24;x+=12){p.moveTo(x,12);p.lineTo(x+12,0);}
     p.stroke();
-    gypsumCutHatch=ctx.createPattern(tile,'repeat');
-    return gypsumCutHatch;
+    const pattern=ctx.createPattern(tile,'repeat');
+    if(light)gypsumCutHatchLight=pattern;else gypsumCutHatchDark=pattern;
+    return pattern;
   }
   function gypsumSheetCentroid(poly){
     // Area-weighted centroid stays inside most clipped board footprints.
@@ -4057,7 +4161,7 @@
       if(c.points.length>=3)ctx.closePath();
       ctx.fillStyle=active?'rgba(37,194,175,.10)':'rgba(37,194,175,.025)';
       if(c.points.length>=3)ctx.fill();
-      ctx.strokeStyle=active?'#51eacb':'#328d85';ctx.lineWidth=active?2.8:1.7;ctx.stroke();
+      ctx.strokeStyle=active?(state.darkDrawing?'#51eacb':'#087c6b'):(state.darkDrawing?'#328d85':'#4b8982');ctx.lineWidth=active?2.8:1.7;ctx.stroke();
       if(c.points.length>=3){
         try{
           const r=ceilingResult(c);ctx.clip();
@@ -4092,7 +4196,7 @@
                   ctx.fillStyle=sheet.full?'rgba(155,97,236,.26)':'rgba(187,138,244,.19)';
                   ctx.fill();
                 }
-                ctx.strokeStyle=sheet.full?'rgba(212,175,255,.87)':'rgba(213,172,250,.73)';
+                ctx.strokeStyle=state.darkDrawing?(sheet.full?'rgba(212,175,255,.87)':'rgba(213,172,250,.73)'):(sheet.full?'rgba(120,65,177,.85)':'rgba(144,98,181,.85)');
                 ctx.lineWidth=sheet.full?1.2:1.05;
                 ctx.setLineDash(sheet.full?[]:[3,2]);
                 ctx.stroke();
@@ -4100,8 +4204,8 @@
               ctx.restore();
             }
             if(c.showRigidFraming!==false){
-              drawRuns(r.main,'x','#fcbd58',1.9);
-              drawRuns(r.cross,'y','#6fd4ec',1.35);
+              drawRuns(r.main,'x',state.darkDrawing?'#fcbd58':'#a26800',1.9);
+              drawRuns(r.cross,'y',state.darkDrawing?'#6fd4ec':'#126c87',1.35);
             }
             if(showBoards&&c.showBoardNumbers!==false&&r.sheets.length<=1500){
               ctx.save();ctx.font='bold 11px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
@@ -4112,17 +4216,17 @@
                 // Don't crowd a sliver with unreadable text; IDs remain in the material count.
                 if(w<23||h<17)continue;
                 const mid=gypsumSheetCentroid(sheet.polygon),pos=toScreen(mid.x,mid.y),label='G'+sheet.index;
-                ctx.lineWidth=3;ctx.strokeStyle='rgba(20,13,30,.88)';ctx.strokeText(label,pos.x,pos.y);
-                ctx.fillStyle=sheet.full?'#f1ddff':'#faedff';ctx.fillText(label,pos.x,pos.y);
+                ctx.lineWidth=3;ctx.strokeStyle=state.darkDrawing?'rgba(20,13,30,.88)':'rgba(255,255,255,.9)';ctx.strokeText(label,pos.x,pos.y);
+                ctx.fillStyle=state.darkDrawing?(sheet.full?'#f1ddff':'#faedff'):'#542481';ctx.fillText(label,pos.x,pos.y);
               }
               ctx.restore();
             }
           }else{
-            drawRuns(r.main,'x','#fcbd58',1.8);
-            drawRuns(r.cross4,'y','#6fd4ec',1.15);
-            drawRuns(r.cross2,'x','#6fd4ec',1.15);
+            drawRuns(r.main,'x',state.darkDrawing?'#fcbd58':'#a26800',1.8);
+            drawRuns(r.cross4,'y',state.darkDrawing?'#6fd4ec':'#126c87',1.15);
+            drawRuns(r.cross2,'x',state.darkDrawing?'#6fd4ec':'#126c87',1.15);
           }
-          if(active && (ceilingSystem(c)!=='rigidx'||c.showRigidFraming!==false) && r.hangerPoints.length<3000){ctx.fillStyle='#f5a5e6';for(const h of r.hangerPoints){const p=toScreen(h.x,h.y);ctx.beginPath();ctx.arc(p.x,p.y,7.5,0,Math.PI*2);ctx.fill();}}
+          if(active && (ceilingSystem(c)!=='rigidx'||c.showRigidFraming!==false) && r.hangerPoints.length<3000){ctx.fillStyle=state.darkDrawing?'#f5a5e6':'#ac2877';for(const h of r.hangerPoints){const p=toScreen(h.x,h.y);ctx.beginPath();ctx.arc(p.x,p.y,7.5,0,Math.PI*2);ctx.fill();}}
         }catch(_){/* Uncalibrated or incomplete draft; drawing stays accessible. */}
       }
       ctx.restore();
@@ -4276,6 +4380,7 @@
     }
   });
   syncCeilingPanel();
+  applyDrawingTheme();
 
   window.addEventListener("resize", resizeCanvas);
   resizeCanvas();

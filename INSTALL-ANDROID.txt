@@ -1,12 +1,11 @@
-ATLAS Estimating v2.9 — Android / TAPE Tool
+ATLAS Estimating v2.9.2 — Android fullscreen update
 
-This is the complete Android-only folder; do not mix iPad files.
+1. In ATLAS, use OPTIONS > Download Project Backup for each important job before updating.
+2. Upload the CONTENTS of this entire Android-only folder to the existing Android repository. Do not mix files with the iPad Tape Layout project.
+3. Open android.html in Android Chrome over HTTPS while online; reload once.
+4. Close the installed ATLAS app fully, then reopen to load the new offline cache.
+5. Tap VIEW > FULL SCREEN (or the fullscreen button) to enter real browser fullscreen on supported Android/desktop browsers.
+6. Tap Exit Full Screen or use the browser's ESC control to leave.
 
-1. Back up your existing ATLAS project(s) using Download Project Backup.
-2. Upload the COMPLETE contents of this Android folder to your published Android repository/site.
-3. In Android Chrome, open your site's android.html while online.
-4. Reload once, then fully close/reopen the installed ATLAS app to refresh the offline cache.
-5. Open a DXF, check units/calibrate, press 📏 TAPE, tap start and end.
-
-TAPE is a temporary measuring overlay; it does not change takeoff quantities or saved projects.
-Read README-TAPE-v2.9.md for controls and limitations.
+When the browser denies native fullscreen, the program still offers its previous page-filling viewer.
+The fix changes only fullscreen handling and the Android cache version. Existing tape, ceiling, wall, dark/light, and PDF functions remain in the package.
