@@ -1572,3 +1572,21 @@ body.drawing-light .empty-state strong { color: #233041; }
 .blocking-warning{color:#ffd18e}
 .blocking-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
 @media(max-width:720px){.blocking-editor-card{padding:9px}.blocking-editor-bottom{grid-template-columns:1fr}.blocking-fields-grid{grid-template-columns:1fr 1fr}#blockingCanvas{height:300px}.blocking-settings-bar{gap:8px}}
+
+/* v3.1: two-tap placement plus AFF dimension controls */
+.blocking-settings-bar .blocking-units-label{gap:7px}
+.blocking-settings-bar #blockingUnits{max-width:210px}
+.blocking-settings-bar #placeBlockingEndsBtn{font-weight:750;background:#1b5962;border-color:#59cdb4;color:#e7fff8}
+.blocking-settings-bar #placeBlockingEndsBtn.blocking-placing{background:#267b62;outline:2px solid #a2f1d8;outline-offset:1px}
+.blocking-settings-bar #addBlockingRunBtn{white-space:nowrap}
+.blocking-editor-fields input[type=number]{min-width:0}
+@media(max-width:520px){.blocking-settings-bar{align-items:stretch}.blocking-settings-bar #placeBlockingEndsBtn{flex:1;min-height:44px}.blocking-settings-bar .blocking-units-label{flex:1}}
+
+@media(max-width:520px){
+ .blocking-settings-bar{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:10px;row-gap:10px;align-items:end}
+ .blocking-settings-bar .blocking-check,.blocking-settings-bar label:has(#blockingStudFace),.blocking-settings-bar #placeBlockingEndsBtn,.blocking-settings-bar #addBlockingRunBtn{grid-column:1/-1}
+ .blocking-settings-bar .blocking-units-label{display:flex;flex-direction:column;align-items:stretch;gap:4px;min-width:0}
+ .blocking-settings-bar .blocking-units-label select,.blocking-settings-bar #blockingUnits{width:100%;max-width:none;min-width:0;font-size:13px}
+ .blocking-settings-bar #placeBlockingEndsBtn{min-height:43px}
+ .blocking-settings-bar #addBlockingRunBtn{min-height:43px}
+}

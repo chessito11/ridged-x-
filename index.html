@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#17191d" />
   <title>ATLAS Takeoff</title>
-  <link rel="stylesheet" href="style.css?v=blocking-v300" />
+  <link rel="stylesheet" href="style.css?v=blocking-v310" />
 </head>
 <body class="panels-hidden">
   <header class="topbar">
@@ -608,11 +608,14 @@
         <div><h2 id="blockingTitle">ATLAS — Blocking Elevation</h2><div id="blockingWallName" class="muted"></div></div>
         <button id="closeBlockingBtn" class="button" type="button">✕ Close</button>
       </div>
-      <p class="muted blocking-tip">Add a horizontal blocking zone, then drag it to move, or drag its white end handles to extend it. Exact dimensions below override dragging. The orange pieces are cut separately to fit BETWEEN the blue studs.</p>
+      <p class="muted blocking-tip">Tap <b>📍 TAP START → END</b>, choose the AFF reference, tap a start point (including its AFF height), then tap the end point. Or add a zone and drag or stretch its white handles. Selected blocking shows live length and AFF dimensions. The orange pieces are cut separately to fit BETWEEN the blue studs.</p>
       <div class="blocking-canvas-wrap"><canvas id="blockingCanvas" width="1000" height="420" aria-label="Interactive wall framing blocking elevation"></canvas></div>
       <div class="blocking-settings-bar">
         <label class="blocking-check"><input id="blockingSnap" type="checkbox" checked> Snap ends to stud centers</label>
         <label>Stud face width (in) <input id="blockingStudFace" type="number" min="0" max="4" step="0.125" value="1.5"></label>
+        <label class="blocking-units-label">Dimensions <select id="blockingUnits" aria-label="Blocking dimension units"><option value="ft">Feet (decimal entry)</option><option value="in">Inches (decimal entry)</option></select></label>
+        <label class="blocking-units-label">AFF reference <select id="blockingAffReference"><option value="bottom">Bottom</option><option value="center">Center</option><option value="top">Top</option></select></label>
+        <button id="placeBlockingEndsBtn" class="button" type="button" aria-pressed="false">📍 TAP START → END</button>
         <button id="addBlockingRunBtn" class="button primary" type="button">+ ADD BLOCKING</button>
       </div>
       <div class="blocking-editor-bottom">
@@ -621,9 +624,9 @@
           <div class="blocking-fields-grid">
             <label>Block number / note<input id="blockingName" type="text" maxlength="32" placeholder="B-001"></label>
             <label>Blocking material<select id="blockingSize"><option value="2x4">2×4 wood</option><option value="2x6" selected>2×6 wood</option><option value="2x8">2×8 wood</option><option value="2x10">2×10 wood</option><option value="2x12">2×12 wood</option></select></label>
-            <label>Start from wall left (ft)<input id="blockingStart" type="number" step="0.001" min="0"></label>
-            <label>Zone length (ft)<input id="blockingLength" type="number" step="0.001" min="0.1"></label>
-            <label>Bottom elevation AFF (ft)<input id="blockingElevation" type="number" step="0.001" min="0"></label>
+            <label>Start from wall left (ft)<input id="blockingStart" type="number" step="any" min="0"></label>
+            <label>Zone length (ft)<input id="blockingLength" type="number" step="any" min="0"></label>
+            <label>Bottom elevation AFF (ft)<input id="blockingElevation" type="number" step="any" min="0"></label>
             <label>Stock length (ft)<select id="blockingStock"><option value="8">8 ft</option><option value="10" selected>10 ft</option><option value="12">12 ft</option><option value="16">16 ft</option></select></label>
           </div>
           <button id="removeBlockingRunBtn" class="button danger" type="button">Remove selected blocking</button>
@@ -636,12 +639,12 @@
       <div class="blocking-footer"><button id="saveBlockingBtn" class="button primary" type="button">SAVE BLOCKING</button><button id="cancelBlockingBtn" class="button" type="button">Cancel</button></div>
     </div>
   </div>
-  <script src="quantities.js?v=blocking-v300"></script>
-  <script src="door-sketch.js?v=blocking-v300"></script>
-  <script src="ceiling-grid.js?v=blocking-v300"></script>
-  <script src="drywall-ceiling.js?v=blocking-v300"></script>
-  <script src="pdf-report.js?v=blocking-v300"></script>
-  <script src="blocking-editor.js?v=blocking-v300"></script>
-  <script src="app.js?v=blocking-v300"></script>
+  <script src="quantities.js?v=blocking-v310"></script>
+  <script src="door-sketch.js?v=blocking-v310"></script>
+  <script src="ceiling-grid.js?v=blocking-v310"></script>
+  <script src="drywall-ceiling.js?v=blocking-v310"></script>
+  <script src="pdf-report.js?v=blocking-v310"></script>
+  <script src="blocking-editor.js?v=blocking-v310"></script>
+  <script src="app.js?v=blocking-v310"></script>
 </body>
 </html>

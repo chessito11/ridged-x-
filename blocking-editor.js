@@ -1,7 +1,7 @@
-/* ATLAS Blocking Editor v3.0 – between-stud wood blocking, preliminary field takeoff.
+/* ATLAS Blocking Editor v3.1 – clickable blocking placement and live dimensions.
    Works offline; uses the saved wall's actual length, height, spacing and openings.
    A run is a horizontal BLOCKING ZONE: each stud bay yields its own cut piece.
-   AFF elevation refers to the bottom of the wood blocking. */
+   Internal elevFt stays at the bottom AFF for backward compatibility. Display reference is configurable. */
 (function(root){
 'use strict';
 const $=id=>document.getElementById(id), EPS=1e-5;
@@ -16,6 +16,31 @@ function ftIn(feet){
   let frac='';if(fraction){const div=gcd(fraction,16);frac=` ${fraction/div}/${16/div}`;}
   return `${feet<0?'-':''}${ft}′-${inches}${frac}″`;
 }
+const AFF_REFS={bottom:'BOTTOM',center:'CENTER',top:'TOP'};
+const UNITS_KEY='atlasBlockingUnitsV31';
+let displayUnit='ft',pendingAffReference='bottom';
+function inchesValue(feet){
+ const v=Math.round(Math.abs(feet)*12*16),whole=Math.floor(v/16),rem=v%16;
+ const gcd=(a,b)=>b?gcd(b,a%b):a;
+ return `${feet<0?'-':''}${whole}${rem?` ${rem/gcd(rem,16)}/${16/gcd(rem,16)}`:''}″`;
+}
+const showDim=feet=>displayUnit==='in'?inchesValue(feet):ftIn(feet);
+const showNumber=feet=>(feet*(displayUnit==='in'?12:1)).toFixed(displayUnit==='in'?2:3).replace(/\.?0+$/,'');
+const parseNumber=text=>{
+ if(typeof text!=='string'||!text.trim())return NaN;
+ const value=Number(text.trim());
+ return Number.isFinite(value)&&value>=0?value/(displayUnit==='in'?12:1):NaN;
+};
+const affReference=run=>AFF_REFS[run?.affReference]?run.affReference:'bottom';
+const refOffset=run=>{const h=(SIZES[run.size]||5.5)/12;return affReference(run)==='top'?h:affReference(run)==='center'?h/2:0;};
+const affValue=run=>number(run.elevFt)+refOffset(run);
+function affString(run,format=ftIn){return `${format(affValue(run))} ${AFF_REFS[affReference(run)]} AFF`;}
+function nextLabel(){return `B-${String(Math.max(0,...draft.map(r=>Number(String(r.label||'').match(/^B-(\d+)$/)?.[1])||0))+1).padStart(3,'0')}`;}
+function cancelPlacement(){placement=null;placementTouch=null;updatePlaceButton();if(wall)render();}
+function updatePlaceButton(){const btn=$('placeBlockingEndsBtn');if(!btn)return;
+ const active=!!placement;btn.classList.toggle('blocking-placing',active);btn.setAttribute('aria-pressed',String(active));
+ btn.textContent=!active?'📍 TAP START → END':placement.stage==='first'?'CANCEL PLACEMENT · TAP START':'CANCEL PLACEMENT · TAP END';
+}
 function centers(wall){
  const length=number(wall.lengthFt),step=Math.max(1,number(wall.spacing,16))/12;
  const result=[0];for(let p=step;p<length-EPS&&result.length<10000;p+=step)result.push(p);
@@ -29,7 +54,7 @@ function cleanRun(run,wall){
  let start=clamp(Number(run.startFt),0,length),end=clamp(start+Math.max(0,Number(run.lengthFt)),start,length);
  if(end-start<0.01)return null;
  let elev=clamp(Number(run.elevFt),0,Math.max(0,height-h));
- return {id:String(run.id||('B-'+Date.now())),label:String(run.label||'').slice(0,32),size,startFt:start,lengthFt:end-start,elevFt:elev,stockFt:[8,10,12,16].includes(number(run.stockFt))?number(run.stockFt):10};
+ return {id:String(run.id||('B-'+Date.now())),label:String(run.label||'').slice(0,32),size,startFt:start,lengthFt:end-start,elevFt:elev,affReference:affReference(run),stockFt:[8,10,12,16].includes(number(run.stockFt))?number(run.stockFt):10};
 }
 function compute(wall,options={}){
  const runs=(options.runs??wall.blockingRuns??[]).map(r=>cleanRun(r,wall)).filter(Boolean);
@@ -80,7 +105,7 @@ function summarize(walls){
  }
  return {groups:[...m.values()],pieces,lf,excluded};
 }
-let host=null,wallId=null,wall=null,draft=[],face=1.5,selected=null,dirty=false,gesture=null,layout=null;
+let host=null,wallId=null,wall=null,draft=[],face=1.5,selected=null,dirty=false,gesture=null,layout=null,placement=null,placementTouch=null;
 const clone=o=>JSON.parse(JSON.stringify(o));
 const genId=()=>`B-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
 function bind(handlers){host=handlers;
@@ -91,62 +116,97 @@ function bind(handlers){host=handlers;
  $('addBlockingRunBtn').addEventListener('click',()=>{
   if(draft.length>=100){alert('This wall has reached 100 blocking zones.');return;}
   const size='2x6',h=SIZES[size]/12;
-  const run={id:genId(),label:`B-${String(Math.max(0,...draft.map(r=>Number(String(r.label||'').match(/^B-(\d+)$/)?.[1])||0))+1).padStart(3,'0')}`,size,startFt:0,lengthFt:Math.min(8,number(wall.lengthFt)),elevFt:clamp(4,0,Math.max(0,number(wall.height)-h)),stockFt:10};
-  draft.push(run);selected=run.id;dirty=true;render();
+  const run={id:genId(),label:nextLabel(),size,startFt:0,lengthFt:Math.min(8,number(wall.lengthFt)),elevFt:clamp(4,0,Math.max(0,number(wall.height)-h)),stockFt:10,affReference:pendingAffReference};
+  draft.push(run);selected=run.id;dirty=true;placement=null;updatePlaceButton();render();
  });
  $('removeBlockingRunBtn').addEventListener('click',()=>{
-  if(!selected)return;draft=draft.filter(r=>r.id!==selected);selected=draft[0]?.id??null;dirty=true;render();
+  if(!selected)return;draft=draft.filter(r=>r.id!==selected);selected=draft[0]?.id??null;dirty=true;cancelPlacement();
  });
  $('blockingStudFace').addEventListener('input',()=>{face=clamp(number($('blockingStudFace').value,1.5),0,4);dirty=true;render(false);});
+ $('placeBlockingEndsBtn').addEventListener('click',()=>{
+  if(!wall)return;
+  if(placement){cancelPlacement();return;}
+  if(draft.length>=100){alert('This wall has reached 100 blocking zones.');return;}
+  gesture=null;placementTouch=null;placement={stage:'first',first:null,preview:null};updatePlaceButton();render();
+ });
+ $('blockingUnits').addEventListener('change',()=>{
+  displayUnit=$('blockingUnits').value==='in'?'in':'ft';
+  try{root.localStorage.setItem(UNITS_KEY,displayUnit);}catch(_){/* storage optional */}
+  render();
+ });
+ $('blockingAffReference').addEventListener('change',()=>{
+  pendingAffReference=$('blockingAffReference').value;
+  const r=selectedRun();if(r&&!placement){r.affReference=pendingAffReference;dirty=true;}
+  render();
+ });
  for(const [id,key] of [['blockingName','label'],['blockingSize','size'],['blockingStart','startFt'],['blockingLength','lengthFt'],['blockingElevation','elevFt'],['blockingStock','stockFt']]){
   $(id).addEventListener('change',()=>{
-   const r=draft.find(r=>r.id===selected);if(!r)return;
-   r[key]=key==='label'||key==='size'?$(id).value:number($(id).value);
+   const r=selectedRun();if(!r)return;
+   const raw=$(id).value;
+   if(key==='label'||key==='size')r[key]=raw;
+   else if(key==='stockFt')r[key]=number(raw);
+   else{
+    const ft=parseNumber(raw);
+    if(!Number.isFinite(ft)){alert('Enter a non-negative number in the selected unit.');render();return;}
+    if(key==='elevFt')r.elevFt=ft-refOffset(r);
+    else r[key]=ft;
+   }
    const clean=cleanRun(r,wall);if(clean)Object.assign(r,clean);
    dirty=true;render();
   });
  }
  const c=$('blockingCanvas');c.addEventListener('pointerdown',onDown);
  c.addEventListener('pointermove',onMove);c.addEventListener('pointerup',onUp);c.addEventListener('pointercancel',onUp);
- document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('blockingDialog').classList.contains('hidden'))close();});
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('blockingDialog').classList.contains('hidden')){if(placement)cancelPlacement();else close();}});
  window.addEventListener('resize',()=>{if(wall)paint();});
 }
 function open(id){
  if(!host)return;const found=host.getWall(id);
  if(!found){alert('Save a wall first, then select it and open BLOCKING ELEVATION.');return;}
  wallId=id;wall=found;draft=clone(Array.isArray(wall.blockingRuns)?wall.blockingRuns:[]).map(x=>cleanRun(x,wall)).filter(Boolean);
- face=clamp(number(wall.blockingFaceIn,1.5),0,4);selected=draft[0]?.id??null;dirty=false;
+ face=clamp(number(wall.blockingFaceIn,1.5),0,4);selected=draft[0]?.id??null;pendingAffReference=affReference(draft[0]);dirty=false;gesture=null;placement=null;placementTouch=null;
+ try{displayUnit=root.localStorage.getItem(UNITS_KEY)==='in'?'in':'ft';}catch(_){displayUnit='ft';}
  $('blockingDialog').classList.remove('hidden');$('blockingWallName').textContent=`${wall.wallNumber} · ${ftIn(wall.lengthFt)} × ${ftIn(wall.height)} · ${wall.spacing}″ O.C.`;
- $('blockingStudFace').value=face;render();
+ $('blockingStudFace').value=face;$('blockingUnits').value=displayUnit;updatePlaceButton();render();
 }
 function close(){if(!wall)return;if(dirty&&!confirm('Discard the unsaved blocking changes?'))return;
- $('blockingDialog').classList.add('hidden');wall=null;wallId=null;gesture=null;dirty=false;
+ $('blockingDialog').classList.add('hidden');wall=null;wallId=null;gesture=null;placement=null;placementTouch=null;dirty=false;
 }
 function save(){if(!wall||!host)return;
  const runs=draft.map(r=>cleanRun(r,wall)).filter(Boolean);
  if(runs.length!==draft.length){alert('One or more blocking runs have invalid dimensions. Please correct or remove them.');return;}
- host.commit(wallId,runs,face);dirty=false;$('blockingDialog').classList.add('hidden');wall=null;wallId=null;gesture=null;
+ host.commit(wallId,runs,face);dirty=false;$('blockingDialog').classList.add('hidden');wall=null;wallId=null;gesture=null;placement=null;placementTouch=null;
 }
 function selectedRun(){return draft.find(x=>x.id===selected)||null;}
 function render(refreshInputs=true){if(!wall)return;
  const r=selectedRun();$('blockingFields').hidden=!r;$('removeBlockingRunBtn').disabled=!r;
+ $('blockingUnits').value=displayUnit;
+ for(const id of ['blockingStart','blockingLength','blockingElevation']){
+  const el=$(id);const label=el.closest('label');if(label){const unit=displayUnit==='in'?'in':'ft';
+   const title=id==='blockingStart'?'Start from wall left':id==='blockingLength'?'Zone length':`${AFF_REFS[affReference(r||{affReference:pendingAffReference})]} elevation AFF`;
+   label.firstChild.textContent=`${title} (${unit})`;
+  }
+ }
  if(refreshInputs){
   $('blockingStudFace').value=face;
   if(r){for(const [id,key] of [['blockingName','label'],['blockingSize','size'],['blockingStart','startFt'],['blockingLength','lengthFt'],['blockingElevation','elevFt'],['blockingStock','stockFt']]){
-    $(id).value=(['startFt','lengthFt','elevFt'].includes(key)?Number(r[key]).toFixed(3):r[key]);
-  }}
+    $(id).value=key==='elevFt'?showNumber(affValue(r)):(['startFt','lengthFt'].includes(key)?showNumber(r[key]):r[key]);
+   }
+   if(!placement)pendingAffReference=affReference(r);$('blockingAffReference').value=pendingAffReference;
+  }
  }
+ if(!r)$('blockingAffReference').value=pendingAffReference;
  const result=compute(wall,{runs:draft,faceIn:face});const list=$('blockingRunList');list.replaceChildren();
  for(const run of result.runs){const row=document.createElement('button');row.type='button';row.className='blocking-run-item'+(run.id===selected?' selected':'');
-  row.textContent=`${run.label||'BLOCK'} · ${run.size} · ${ftIn(run.lengthFt)} zone · ${ftIn(run.elevFt)} AFF · ${run.cutPieces} cuts`;
-  row.addEventListener('click',()=>{selected=run.id;render();});list.appendChild(row);
+  row.textContent=`${run.label||'BLOCK'} · ${run.size} · ${showDim(run.lengthFt)} zone · ${affString(run,showDim)} · ${run.cutPieces} cuts`;
+  row.addEventListener('click',()=>{selected=run.id;pendingAffReference=affReference(run);render();});list.appendChild(row);
  }
  const summary=$('blockingMaterialStats');summary.replaceChildren();
  const intro=document.createElement('div');intro.textContent=`${result.totalPieces} between-stud pieces · ${result.installedLF.toFixed(2)} installed LF`;summary.appendChild(intro);
  for(const t of result.groups){const line=document.createElement('div');line.textContent=`${t.size}: ${t.pieces} cut pieces · ${t.installedLF.toFixed(2)} LF · approx. ${t.stockMinimum} × ${t.stockFt}′ stock (before waste)`;summary.appendChild(line);}
  if(result.omittedDoorBays){const warn=document.createElement('div');warn.className='blocking-warning';warn.textContent=`${result.omittedDoorBays} bay location(s) overlap door openings and were excluded. Verify jamb-adjacent blocking separately.`;summary.appendChild(warn);}
- $('blockingStatus').textContent=dirty?'Unsaved changes — press SAVE BLOCKING to keep them.':'Changes are saved only when you press SAVE BLOCKING.';
- paint();
+ $('blockingStatus').textContent=placement?(placement.stage==='first'?'Placement: tap the START point (including its AFF height) on the elevation.':'Placement: tap the END point. The second tap sets horizontal length; AFF stays at your first tap.'):(dirty?'Unsaved changes — press SAVE BLOCKING to keep them.':'Changes are saved only when you press SAVE BLOCKING.');
+ updatePlaceButton();paint();
 }
 function coord(evt){const rect=$('blockingCanvas').getBoundingClientRect();return {x:(evt.clientX-rect.left),y:(evt.clientY-rect.top)};}
 function hitTest(p){if(!layout)return null;const {left,top,sx,sy,H}=layout;
@@ -162,11 +222,33 @@ function hitTest(p){if(!layout)return null;const {left,top,sx,sy,H}=layout;
 function nearestStud(x){const studs=centers(wall),lim=12/Math.max(layout?.sx||1,1e-6);
  let out=x,dist=lim;for(const s of studs){const d=Math.abs(x-s);if(d<dist){dist=d;out=s;}}return out;
 }
-function onDown(evt){if(!wall||evt.button>0)return;const h=hitTest(coord(evt));if(!h)return;
- const r=draft.find(r=>r.id===h.id);selected=h.id;gesture={pointerId:evt.pointerId,kind:h.kind,start:coord(evt),origin:clone(r)};
+function pointToWall(p){return {x:clamp((p.x-layout.left)/layout.sx,0,number(wall.lengthFt)),aff:clamp(number(wall.height)-(p.y-layout.top)/layout.sy,0,number(wall.height))};}
+function placementPoint(p){const loc=pointToWall(p);if($('blockingSnap').checked)loc.x=nearestStud(loc.x);return loc;}
+function finishPlacement(p){
+ const loc=placementPoint(p);
+ if(placement.stage==='first'){placement.first=loc;placement.stage='second';placement.preview=loc;render();return;}
+ const first=placement.first,start=Math.min(first.x,loc.x),length=Math.abs(first.x-loc.x);
+ if(length<.09){$('blockingStatus').textContent='Choose a different end point; the blocking zone needs a positive length.';paint();return;}
+ const style=selectedRun();const size=style?.size||'2x6';const reference=pendingAffReference;
+ const candidate={id:genId(),label:nextLabel(),size,affReference:reference,startFt:start,lengthFt:length,elevFt:first.aff-(reference==='top'?SIZES[size]/12:reference==='center'?SIZES[size]/24:0),stockFt:style?.stockFt||10};
+ const clean=cleanRun(candidate,wall);
+ if(!clean){$('blockingStatus').textContent='This blocking run does not fit the wall. Select two other points.';return;}
+ draft.push(clean);selected=clean.id;placement=null;placementTouch=null;dirty=true;render();
+}
+function onDown(evt){if(!wall||evt.button>0)return;
+ const point=coord(evt);
+ if(placement){placementTouch={pointerId:evt.pointerId,down:point,moved:false};$('blockingCanvas').setPointerCapture(evt.pointerId);evt.preventDefault();return;}
+ const h=hitTest(point);if(!h)return;
+ const r=draft.find(r=>r.id===h.id);selected=h.id;pendingAffReference=affReference(r);gesture={pointerId:evt.pointerId,kind:h.kind,start:point,origin:clone(r)};
  $('blockingCanvas').setPointerCapture(evt.pointerId);render();evt.preventDefault();
 }
-function onMove(evt){if(!gesture||evt.pointerId!==gesture.pointerId||!wall||!layout)return;
+function onMove(evt){if(!wall||!layout)return;
+ if(placement){
+  if(placementTouch&&evt.pointerId===placementTouch.pointerId&&Math.hypot(coord(evt).x-placementTouch.down.x,coord(evt).y-placementTouch.down.y)>9)placementTouch.moved=true;
+  if(placement.stage==='second'){placement.preview=placementPoint(coord(evt));paint();}
+  return;
+ }
+ if(!gesture||evt.pointerId!==gesture.pointerId)return;
  const r=selectedRun();if(!r)return;const p=coord(evt),dx=(p.x-gesture.start.x)/layout.sx,dy=(p.y-gesture.start.y)/layout.sy;
  const max=number(wall.lengthFt),height=number(wall.height),o=gesture.origin;
  if(gesture.kind==='left'){
@@ -181,7 +263,23 @@ function onMove(evt){if(!gesture||evt.pointerId!==gesture.pointerId||!wall||!lay
  }
  dirty=true;render();evt.preventDefault();
 }
-function onUp(evt){if(gesture&&gesture.pointerId===evt.pointerId){gesture=null;render();}}
+function onUp(evt){
+ if(placementTouch&&evt.pointerId===placementTouch.pointerId){const touch=placementTouch;placementTouch=null;
+  if(evt.type!=='pointercancel'&&!touch.moved&&placement)finishPlacement(coord(evt));return;
+ }
+ if(gesture&&gesture.pointerId===evt.pointerId){gesture=null;render();}
+}
+function lineDimension(ctx,x1,y1,x2,y2,label,color='#b7e4ff'){
+ ctx.save();ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=1.2;ctx.setLineDash([]);
+ ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+ const horizontal=Math.abs(y1-y2)<2;
+ if(horizontal){for(const x of [x1,x2]){ctx.beginPath();ctx.moveTo(x-3,y1-5);ctx.lineTo(x+3,y1+5);ctx.stroke();}}
+ else{for(const y of [y1,y2]){ctx.beginPath();ctx.moveTo(x1-5,y);ctx.lineTo(x1+5,y);ctx.stroke();}}
+ ctx.font='bold 11px system-ui';ctx.textBaseline='middle';ctx.textAlign='center';
+ if(horizontal){const xx=(x1+x2)/2;const width=ctx.measureText(label).width+10;ctx.fillStyle='#101b27';ctx.fillRect(xx-width/2,y1-17,width,13);ctx.fillStyle=color;ctx.fillText(label,xx,y1-10);}
+ else{ctx.translate(x1-9,(y1+y2)/2);ctx.rotate(-Math.PI/2);const width=ctx.measureText(label).width+10;ctx.fillStyle='#101b27';ctx.fillRect(-width/2,-7,width,14);ctx.fillStyle=color;ctx.fillText(label,0,0);}
+ ctx.restore();
+}
 function paint(){if(!wall)return;
  const canvas=$('blockingCanvas'),rect=canvas.getBoundingClientRect();if(!rect.width)return;
  const dpr=Math.min(2,root.devicePixelRatio||1),w=Math.max(200,rect.width),h=Math.max(250,rect.height);
@@ -210,9 +308,37 @@ function paint(){if(!wall)return;
   if(r.id===selected){ctx.fillStyle='#ffffff';for(const xx of [x,x+width]){ctx.fillRect(xx-4,y+hh/2-6,8,12);}}
   const label=r.label||'BLOCK';if(width>55){ctx.textAlign='center';ctx.textBaseline='bottom';ctx.font='bold 11px system-ui';ctx.strokeStyle='#121e2c';ctx.lineWidth=3;ctx.strokeText(label,x+width/2,y-3);ctx.fillStyle='#ffd39e';ctx.fillText(label,x+width/2,y-3);}
  }
+ // Dimension annotations are linked to the selected blocking zone, in actual wall feet.
+ const active=selectedRun();if(active){
+  const x0=left+active.startFt*sx,x1=left+(active.startFt+active.lengthFt)*sx;
+  const blockHeight=SIZES[active.size]/12;
+  const yTop=top+(number(wall.height)-active.elevFt-blockHeight)*sy;
+  const yRef=top+(number(wall.height)-affValue(active))*sy;
+  const dimY=clamp(yTop-17,top+15,bottom-12);
+  ctx.save();ctx.strokeStyle='rgba(206,230,249,.8)';ctx.setLineDash([3,4]);ctx.lineWidth=.8;
+  for(const x of [x0,x1]){ctx.beginPath();ctx.moveTo(x,yTop);ctx.lineTo(x,dimY);ctx.stroke();}
+  ctx.restore();
+  lineDimension(ctx,x0,dimY,x1,dimY,showDim(active.lengthFt),'#fff0ce');
+  // Independent wall-left offset and AFF dimension (bottom/center/top selected in the editor).
+  if(active.startFt>.1&&x0-left>44){lineDimension(ctx,left,bottom+13,x0,bottom+13,showDim(active.startFt),'#9ccce9');}
+  lineDimension(ctx,left-17,bottom,left-17,yRef,showDim(affValue(active)),'#b9e6fc');
+  ctx.save();ctx.setLineDash([3,4]);ctx.strokeStyle='#b9e6fc';ctx.beginPath();ctx.moveTo(left-11,yRef);ctx.lineTo(Math.max(left+8,x0),yRef);ctx.stroke();ctx.restore();
+  ctx.font='bold 10px system-ui';ctx.textAlign='right';ctx.textBaseline='top';ctx.fillStyle='#fff0ce';
+  const hud=`${active.label||'BLOCK'} | ${AFF_REFS[affReference(active)]} AFF ${showDim(affValue(active))}`;
+  ctx.fillText(hud,right,3,Math.max(100,W));
+ }
+ // Two tap placement guides: first tap determines both start X and the chosen AFF reference.
+ if(placement?.first){const first=placement.first,second=placement.preview||first;
+  const x0=left+first.x*sx,x1=left+second.x*sx,y0=top+(number(wall.height)-first.aff)*sy;
+  ctx.save();ctx.strokeStyle='#61f0c2';ctx.fillStyle='#61f0c2';ctx.lineWidth=2;ctx.setLineDash([6,4]);
+  ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y0);ctx.stroke();ctx.setLineDash([]);
+  for(const x of [x0,x1]){ctx.beginPath();ctx.arc(x,y0,5,0,Math.PI*2);ctx.fill();}
+  ctx.fillStyle='#c1ffe8';ctx.textAlign='center';ctx.font='bold 11px system-ui';
+  ctx.fillText(showDim(Math.abs(second.x-first.x)),(x0+x1)/2,clamp(y0-11,top+10,bottom-10));ctx.restore();
+ }
  ctx.fillStyle='#b4cce0';ctx.font='11px system-ui';ctx.textAlign='center';ctx.fillText(`${ftIn(number(wall.lengthFt))} WALL`,left+W/2,h-9);
  ctx.save();ctx.translate(15,top+H/2);ctx.rotate(-Math.PI/2);ctx.fillText(`${ftIn(number(wall.height))} HEIGHT`,0,0);ctx.restore();
- ctx.font='10px system-ui';ctx.textAlign='left';ctx.fillStyle='#aac1d6';ctx.fillText('Blue: studs   Orange: blocking   Dashed: editable zone   Gray: door opening',left,15);
+ if(w>580){ctx.font='10px system-ui';ctx.textAlign='left';ctx.fillStyle='#aac1d6';ctx.fillText('Blue: studs   Orange: blocking   Dashed: editable zone   Gray: door opening',left,15);}
 }
-root.AtlasBlocking={bind,open,compute,summarize,ftIn};
+root.AtlasBlocking={bind,open,compute,summarize,ftIn,affValue,affString};
 })(typeof globalThis!=='undefined'?globalThis:this);

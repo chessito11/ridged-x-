@@ -4388,7 +4388,7 @@
       const visibleWalls=getTemporaryAreaWalls([...state.walls.values()]).filter(w=>!state.hiddenWallTypes.has(w.wallType||''));
       const blockingRows=[];
       for(const w of visibleWalls){const b=AtlasBlocking.compute(w);
-        for(const r of b.runs){blockingRows.push([`${w.wallNumber} / ${r.label||'BLOCK'} / ${r.size} / ${r.stockFt} ft stock / ${AtlasBlocking.ftIn(r.elevFt)} AFF`,
+        for(const r of b.runs){blockingRows.push([`${w.wallNumber} / ${r.label||'BLOCK'} / ${r.size} / ${r.stockFt} ft stock / ${AtlasBlocking.affString(r)}`,
           `${r.cutPieces} cuts / ${r.cutLF.toFixed(2)} LF`]);}
       }
       if(blockingRows.length)sections.push({title:'Cabinet blocking markup schedule - BETWEEN STUDS',rows:blockingRows});

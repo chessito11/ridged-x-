@@ -18,3 +18,9 @@ V2.9.4: Open VIEW > SCROLL ON (or full-screen SCROLL). Mouse wheel/trackpad now 
 
 
 NEW: Select and save a wall, then open BLOCKING ELEVATION. Wood blocking is installed between studs, with drag, resize, dimension input, cut-piece estimates, saved project backups and PDF material reports. Upload blocking-editor.js with all other files. See README-BLOCKING-v3.0.md.
+
+V3.1 UPDATE — Blocking elevation field dimensions:
+- In BLOCKING ELEVATION, choose feet or inches and a Bottom/Center/Top AFF reference.
+- Press TAP START → END, tap the starting position/height, then tap the ending position.
+- Selected blocking displays length, left offset, and vertical AFF from finished floor.
+- For details read README-BLOCKING-v3.1.md.
