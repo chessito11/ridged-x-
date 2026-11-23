@@ -7,6 +7,11 @@
 
   const WALL_TYPE_STORAGE_KEY = "atlasTakeoffWallTypesV1";
   const DRAWING_DARK_STORAGE_KEY = "atlasDrawingDarkModeV1";
+  const SCROLL_MODE_STORAGE_KEY = "atlasViewerScrollModeV1";
+  function loadScrollMode() {
+    try { return localStorage.getItem(SCROLL_MODE_STORAGE_KEY) === "on"; }
+    catch (_) { return false; }
+  }
   function loadDrawingDark() {
     try { return localStorage.getItem(DRAWING_DARK_STORAGE_KEY) !== "off"; }
     catch (_) { return true; }
@@ -38,6 +43,7 @@
     savedProjectId: null,
     projectDirty: false,
     darkDrawing: loadDrawingDark(),
+    scrollMode: loadScrollMode(),
     fullscreenFallback: false,
     fullscreenPersistent: false,
     segments: [],
@@ -520,6 +526,8 @@
         ctx.fillRect(mx - w/2, my - 9, w, 18);
         ctx.fillStyle = state.darkDrawing ? "#9fd0ff" : "#115c9b";
         ctx.fillText(text, mx, my);
+        const backingCount=(wall.blockingRuns||[]).length;
+        if(backingCount){ctx.font="bold 10px system-ui";ctx.fillStyle=state.darkDrawing?"#ffc683":"#925415";ctx.fillText(`B × ${backingCount}`,mx,my+22);}
       }
     }
 
@@ -1728,6 +1736,7 @@
     const hasSavedWall = !!state.selectedId && state.walls.has(state.selectedId);
     $("findSelectedBtn").disabled = !hasSavedWall;
     $("deleteSelectedBtn").disabled = !hasSavedWall;
+    $("openBlockingBtn").disabled = !hasSavedWall;
 
     const wall = hasSavedWall ? state.walls.get(state.selectedId) : null;
     $("findSelectedBtn").title = wall ? `Find ${wall.wallNumber}` : "Select a saved wall first";
@@ -1973,6 +1982,7 @@
           <td>${escapeHtml(w.studSize)} ${escapeHtml(w.gauge)}</td>
           <td>${w.studQty}</td>
           <td class="markup-actions">
+            <button class="markup-blocking" type="button" title="Edit cabinet blocking elevation">Blocking</button>
             <button class="markup-locate" type="button" title="Center wall in viewer">Find</button>
             <button class="markup-delete" type="button" title="Delete wall">Delete</button>
           </td>`;
@@ -1980,6 +1990,12 @@
         tr.addEventListener("click", (e) => {
           if (e.target.closest("button")) return;
           focusWallSegment(w.segmentId);
+        });
+
+        tr.querySelector(".markup-blocking").addEventListener("click", (e) => {
+          e.stopPropagation();
+          selectSegment(w.segmentId);
+          AtlasBlocking.open(w.segmentId);
         });
 
         tr.querySelector(".markup-locate").addEventListener("click", (e) => {
@@ -2102,6 +2118,14 @@
     if (doorMaterials.size) el.appendChild(makeSummaryGroup("WOOD JAMBS", [...doorMaterials].map(([k,v])=>[k,`${v} pcs`])));
     if (assemblyMaterials.size) el.appendChild(makeSummaryGroup("ASSEMBLY MATERIALS",
       [...assemblyMaterials.values()].map(p => [p.name, `${p.quantity.toFixed(2)} ${p.unit}`])));
+    const backing=AtlasBlocking.summarize(walls);
+    if(backing.pieces){
+      el.appendChild(makeSummaryGroup("WOOD BLOCKING — BETWEEN STUDS",backing.groups.map(g=>[
+        `${g.size} wood - ${g.stockFt}ft stock - ${g.installedLF.toFixed(2)} LF installed`,
+        `${g.pieces} cuts / ${g.stockWith5Percent} stock pcs`
+      ])));
+    }
+
   }
 
   function makeSummaryGroup(title, items) {
@@ -2145,6 +2169,8 @@
     state.walls.set(s.id, {
       segmentId: s.id,
       doors: structuredClone(state.walls.get(s.id)?.doors || []),
+      blockingRuns: structuredClone(state.walls.get(s.id)?.blockingRuns || []),
+      blockingFaceIn: state.walls.get(s.id)?.blockingFaceIn ?? 1.5,
       wallNumber,
       wallType: $("wallTypeSelect").value || "",
       assemblyParts: structuredClone(
@@ -2166,6 +2192,7 @@
     });
 
     refreshTables();
+    updateSelectedActionButtons();
     if (!options.preserveMode) state.toolMode = "wall";
     draw();
   }
@@ -2195,7 +2222,7 @@
     const rows = [[
       "Wall Number","Wall Type","Length (ft)","Length (ft-in)","Height (ft)","Stud Size","Gauge",
       "Spacing (in OC)","Stud Qty","Top Track","Bottom Track","Track LF","Double Ends","Waste %",
-      "Full-height Metal Stud Qty","Cripple Stud Qty","Top Track LF","Bottom Track LF","Header Track LF","Door Count","Wood Jamb Qty","Door Details"
+      "Full-height Metal Stud Qty","Cripple Stud Qty","Top Track LF","Bottom Track LF","Header Track LF","Door Count","Wood Jamb Qty","Door Details","Blocking Zones","Blocking Cut Pieces","Blocking LF","Blocking Details"
     ]];
     for (const w of walls) {
       rows.push([
@@ -2205,7 +2232,8 @@
         w.fullHeightStudQty ?? w.studQty, (w.crippleGroups || []).reduce((n,g)=>n+g.quantity,0),
         w.topTrack === "None" ? 0 : (w.topTrackFt ?? w.trackFt).toFixed(2),
         w.bottomTrack === "None" ? 0 : (w.bottomTrackFt ?? w.trackFt).toFixed(2),
-        (w.headerTrackFt || 0).toFixed(2), (w.doors || []).length,w.woodJambQty || 0,JSON.stringify(w.doors || [])
+        (w.headerTrackFt || 0).toFixed(2), (w.doors || []).length,w.woodJambQty || 0,JSON.stringify(w.doors || []),
+        (w.blockingRuns||[]).length,AtlasBlocking.compute(w).totalPieces,AtlasBlocking.compute(w).installedLF.toFixed(2),JSON.stringify(w.blockingRuns||[])
       ]);
     }
     const csv = rows.map(r => r.map(csvEscape).join(",")).join("\r\n");
@@ -3064,9 +3092,77 @@
     }
   });
 
+  // v2.9.4: independent drawing scroll/navigation mode. This is a VIEW preference,
+  // not a takeoff or drawing change, and is not written into project backups.
+  function panDrawing(dx, dy) {
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) return;
+    state.view.offsetX += dx;
+    state.view.offsetY += dy;
+    draw();
+  }
+
+  function syncScrollMode() {
+    for (const id of ["scrollModeBtn", "fsScrollModeBtn"]) {
+      const button = $(id);
+      if (!button) continue;
+      button.textContent = state.scrollMode ? "SCROLL ON" : "SCROLL OFF";
+      button.classList.toggle("active-tool", state.scrollMode);
+      button.setAttribute("aria-pressed", String(state.scrollMode));
+      button.title = state.scrollMode
+        ? "Scroll the drawing with the wheel/trackpad, arrows or finger; Ctrl+wheel zooms. Tap to return to normal measuring/takeoff."
+        : "Enable scrolling/panning the drawing without selecting markups";
+    }
+    $("scrollPad").hidden = !state.scrollMode;
+    canvas.style.cursor = state.scrollMode ? "grab" : "";
+    if (state.scrollMode) {
+      $("hintbar").textContent = "SCROLL ON: wheel/trackpad or drag pans • arrows move view • Ctrl+wheel/pinch zoom • SCROLL OFF to select";
+    } else if ($("hintbar").textContent.startsWith("SCROLL ON:")) {
+      $("hintbar").textContent = "Tap wall • Drag pan • Pinch zoom";
+    }
+  }
+
+  function toggleScrollMode() {
+    state.scrollMode = !state.scrollMode;
+    try { localStorage.setItem(SCROLL_MODE_STORAGE_KEY, state.scrollMode ? "on" : "off"); }
+    catch (_) { /* Device may block storage; mode still works for this session. */ }
+    syncScrollMode();
+  }
+
+  $("scrollModeBtn").addEventListener("click", toggleScrollMode);
+  $("fsScrollModeBtn").addEventListener("click", toggleScrollMode);
+  $("scrollPad").querySelectorAll("[data-scroll-direction]").forEach(button => {
+    const step = 110;
+    const offsets = {
+      up: [0, step], down: [0, -step], left: [step, 0], right: [-step, 0]
+    };
+    button.addEventListener("click", () => {
+      if (!state.scrollMode) return;
+      const [dx, dy] = offsets[button.dataset.scrollDirection] || [0, 0];
+      panDrawing(dx, dy);
+    });
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!state.scrollMode || !["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) return;
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const el = document.activeElement;
+    if (el?.matches("input,textarea,select,[contenteditable='true']")) return;
+    const arrows = { ArrowUp: [0, 90], ArrowDown: [0, -90], ArrowLeft: [90, 0], ArrowRight: [-90, 0] };
+    e.preventDefault();
+    panDrawing(...arrows[e.key]);
+  });
+
   canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
+    // Wheel scrolls the *drawing*, not the browser/page. Trackpads supply both axes.
+    // Shift+wheel is horizontal; Ctrl/Meta/Alt+wheel still zooms in scroll mode.
+    if (state.scrollMode && !(e.ctrlKey || e.metaKey || e.altKey)) {
+      const units = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? Math.max(220, rect.height) : 1;
+      const horizontal = e.shiftKey && Math.abs(e.deltaX) < 1 ? e.deltaY : e.deltaX;
+      const vertical = e.shiftKey && Math.abs(e.deltaX) < 1 ? 0 : e.deltaY;
+      panDrawing(-horizontal * units, -vertical * units);
+      return;
+    }
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
     const before = screenToWorld(mx, my);
     const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
@@ -3081,7 +3177,7 @@
     state.pointers.set(e.pointerId, {x:e.clientX,y:e.clientY});
     if (state.pointers.size === 1) {
       state.ceilingDragStart = null;
-      if (state.ceilingMoveMode && !state.ceilingDrawing && !state.ceilingPickMode && !state.ceilingRectMode) {
+      if (!state.scrollMode && state.ceilingMoveMode && !state.ceilingDrawing && !state.ceilingPickMode && !state.ceilingRectMode) {
         const c=selectedCeiling();
         const rect=canvas.getBoundingClientRect();
         if (c && pointInPolygon(screenToWorld(e.clientX-rect.left,e.clientY-rect.top),c.points)) {
@@ -3165,7 +3261,7 @@
     if (wasGridDrag) {
       if (state.moved) {markProjectDirty();updateCeilingStats();}
       state.ceilingDragStart=null;
-    } else if (hadOne && !state.moved && !wasPinch) {
+    } else if (!state.scrollMode && hadOne && !state.moved && !wasPinch) {
       if (state.toolMode === 'tape') tapTapePoint(sx, sy);
       else if (state.ceilingPickMode) pickExistingCeilingOutline(sx,sy);
       else if (state.ceilingRectMode) addCeilingRectangleCorner(sx,sy);
@@ -4289,6 +4385,13 @@
         if(rows.length)sections.push({title:`Wall materials / ${title}`,rows});
       }
       if(!groups.length && state.walls.size){sections.push({title:'Wall material visibility',rows:[['Current view','No visible wall takeoff materials']]});}
+      const visibleWalls=getTemporaryAreaWalls([...state.walls.values()]).filter(w=>!state.hiddenWallTypes.has(w.wallType||''));
+      const blockingRows=[];
+      for(const w of visibleWalls){const b=AtlasBlocking.compute(w);
+        for(const r of b.runs){blockingRows.push([`${w.wallNumber} / ${r.label||'BLOCK'} / ${r.size} / ${r.stockFt} ft stock / ${AtlasBlocking.ftIn(r.elevFt)} AFF`,
+          `${r.cutPieces} cuts / ${r.cutLF.toFixed(2)} LF`]);}
+      }
+      if(blockingRows.length)sections.push({title:'Cabinet blocking markup schedule - BETWEEN STUDS',rows:blockingRows});
     }
     const byTile=new Map(),byRigid=new Map(),schedule=[];
     for(const c of [...state.ceilings].sort((a,b)=>(a.number||'').localeCompare(b.number||'',undefined,{numeric:true}))){
@@ -4349,12 +4452,25 @@
       'Grid location and material counts are based on the ceiling boundary, calibrated DXF units, and each saved offset/rotation.',
       'Cut tile positions are counted individually; offcut reuse, lights, ducts, columns, breaks and special borders are not optimized.',
       'Main runners, tee stock, hangers and perimeter angle are preliminary quantities. Check actual manufacturer installation details and job specifications.',
+      'Blocking estimator assumes each saved horizontal zone is cut into separate between-stud pieces. Clear length deducts entered stud face width; door-intersecting bays are excluded. Verify cabinet load, support, connections and backing details.',
       'Wall totals (when included) reflect currently visible wall layers and any closed wall AREA SELECT filter. Ceiling totals include all saved ACT and Rigid X ceiling areas.'
     ];
     const project=state.projectName||state.fileName||'New Project';
     AtlasPdfReport.download({title:ceilingsOnly?'Ceiling material takeoff':'Material summary - Walls + Ceilings',project,sections,notes},
       `${project.replace(/[^a-z0-9_-]+/gi,'-').slice(0,50)}-${ceilingsOnly?'Ceiling':'Materials'}-Summary.pdf`);
   }
+
+  AtlasBlocking.bind({
+    currentWallId:()=>state.selectedId,
+    getWall:id=>state.walls.get(id),
+    commit:(id,runs,faceIn)=>{
+      const wall=state.walls.get(id);if(!wall)return;
+      pushTakeoffHistory();
+      wall.blockingRuns=structuredClone(runs);wall.blockingFaceIn=faceIn;
+      refreshTables();draw();
+      $("hintbar").textContent=`${wall.wallNumber}: ${runs.length} blocking zone(s) saved. Material Summary and PDF have updated.`;
+    }
+  });
 
   $('ceilingModeBtn').addEventListener('click',openCeilingPanel);
   $('fsCeilingBtn').addEventListener('click',openCeilingPanel);
@@ -4395,6 +4511,7 @@
   });
   syncCeilingPanel();
   applyDrawingTheme();
+  syncScrollMode();
 
   window.addEventListener("resize", resizeCanvas);
   resizeCanvas();

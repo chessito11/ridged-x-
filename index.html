@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#17191d" />
   <title>ATLAS Takeoff</title>
-  <link rel="stylesheet" href="style.css?v=ceiling-sf-v293" />
+  <link rel="stylesheet" href="style.css?v=blocking-v300" />
 </head>
 <body class="panels-hidden">
   <header class="topbar">
@@ -103,6 +103,7 @@
             <label title="Solid: studs; hollow: above-door cripples; purple: metal jambs; orange: wood jambs"><input id="showStudDots" type="checkbox" checked> Stud dots</label>
             <button id="findSelectedBtn" class="mini-tool-button" type="button" disabled>FIND</button>
             <button id="deleteSelectedBtn" class="mini-tool-button delete-mini" type="button" disabled>DELETE</button>
+            <button id="scrollModeBtn" class="mini-tool-button" type="button" aria-pressed="false" title="Scroll/pan the drawing without placing takeoff markups">SCROLL OFF</button>
             <button id="fullscreenBtn" class="mini-tool-button fullscreen-main" type="button" aria-pressed="false">⛶ FULL SCREEN</button>
             <div class="viewer-option-status">
               <span id="scaleBadge" class="badge">Scale: DXF units</span>
@@ -117,6 +118,7 @@
         <button id="fsCeilingBtn" class="button" type="button">CEILING ▦</button>
         <button id="fsTapeBtn" class="button tape-mode-button" type="button" aria-pressed="false">📏 TAPE</button>
         <button id="fsDrawingDarkBtn" class="button drawing-theme-button" type="button" aria-pressed="true" title="Switch between dark and light plan backgrounds">DARK ON</button>
+        <button id="fsScrollModeBtn" class="button" type="button" aria-pressed="false" title="Switch between scrolling/panning and normal drawing selection">SCROLL OFF</button>
          <button id="fsTraceBtn" class="button" type="button" aria-pressed="false">TRACE ▶</button>
         <button id="fsLockBtn" class="button" type="button" hidden aria-hidden="true">TRACE LOCK</button>
         <button id="fsOrthoBtn" class="button" type="button">ORTHO</button>
@@ -130,6 +132,15 @@
       </div>
       <div id="canvasWrap">
         <canvas id="dxfCanvas"></canvas>
+        <div id="scrollPad" class="drawing-scroll-pad" aria-label="Move drawing" hidden>
+          <button type="button" data-scroll-direction="up" aria-label="Scroll drawing up" title="Scroll up">▲</button>
+          <div class="drawing-scroll-pad-middle">
+            <button type="button" data-scroll-direction="left" aria-label="Scroll drawing left" title="Scroll left">◀</button>
+            <span>MOVE</span>
+            <button type="button" data-scroll-direction="right" aria-label="Scroll drawing right" title="Scroll right">▶</button>
+          </div>
+          <button type="button" data-scroll-direction="down" aria-label="Scroll drawing down" title="Scroll down">▼</button>
+        </div>
         <div id="tapeReadout" class="tape-readout" hidden aria-live="polite">
           <div class="tape-readout-head"><strong>📏 TAPE</strong><span id="tapeStep">Tap first point</span></div>
           <output id="tapeDistance">—</output>
@@ -324,6 +335,11 @@
             <div><span>Bottom track</span><strong id="calcBottom">—</strong></div>
             <div><span>Top track</span><strong id="calcTop">—</strong></div>
           </div>
+          <section class="wall-doors-section">
+            <h3>Cabinet / wall blocking</h3>
+            <button id="openBlockingBtn" class="button blocking-open-button" type="button" disabled>▤ BLOCKING ELEVATION</button>
+            <small class="muted">Select a SAVED wall to place wood blocking between studs. Drag runs, resize the ends, or enter exact dimensions.</small>
+          </section>
           <section class="wall-doors-section">
             <h3>Doors in this wall</h3>
             <button id="addWallDoorBtn" class="button compact-button" type="button">+ Door at wall center</button>
@@ -585,11 +601,47 @@
       <div class="project-dialog-actions"><button type="submit" class="button primary">Save Door</button><button id="cancelDoorBtn" class="button" type="button">Cancel</button></div>
     </form>
   </div>
-  <script src="quantities.js?v=ceiling-sf-v293"></script>
-  <script src="door-sketch.js?v=ceiling-sf-v293"></script>
-  <script src="ceiling-grid.js?v=ceiling-sf-v293"></script>
-  <script src="drywall-ceiling.js?v=ceiling-sf-v293"></script>
-  <script src="pdf-report.js?v=ceiling-sf-v293"></script>
-  <script src="app.js?v=ceiling-sf-v293"></script>
+
+  <div id="blockingDialog" class="project-modal hidden" role="dialog" aria-modal="true" aria-labelledby="blockingTitle">
+    <div class="blocking-editor-card">
+      <div class="blocking-editor-header">
+        <div><h2 id="blockingTitle">ATLAS — Blocking Elevation</h2><div id="blockingWallName" class="muted"></div></div>
+        <button id="closeBlockingBtn" class="button" type="button">✕ Close</button>
+      </div>
+      <p class="muted blocking-tip">Add a horizontal blocking zone, then drag it to move, or drag its white end handles to extend it. Exact dimensions below override dragging. The orange pieces are cut separately to fit BETWEEN the blue studs.</p>
+      <div class="blocking-canvas-wrap"><canvas id="blockingCanvas" width="1000" height="420" aria-label="Interactive wall framing blocking elevation"></canvas></div>
+      <div class="blocking-settings-bar">
+        <label class="blocking-check"><input id="blockingSnap" type="checkbox" checked> Snap ends to stud centers</label>
+        <label>Stud face width (in) <input id="blockingStudFace" type="number" min="0" max="4" step="0.125" value="1.5"></label>
+        <button id="addBlockingRunBtn" class="button primary" type="button">+ ADD BLOCKING</button>
+      </div>
+      <div class="blocking-editor-bottom">
+        <div class="blocking-editor-fields" id="blockingFields" hidden>
+          <h3>Selected blocking zone</h3>
+          <div class="blocking-fields-grid">
+            <label>Block number / note<input id="blockingName" type="text" maxlength="32" placeholder="B-001"></label>
+            <label>Blocking material<select id="blockingSize"><option value="2x4">2×4 wood</option><option value="2x6" selected>2×6 wood</option><option value="2x8">2×8 wood</option><option value="2x10">2×10 wood</option><option value="2x12">2×12 wood</option></select></label>
+            <label>Start from wall left (ft)<input id="blockingStart" type="number" step="0.001" min="0"></label>
+            <label>Zone length (ft)<input id="blockingLength" type="number" step="0.001" min="0.1"></label>
+            <label>Bottom elevation AFF (ft)<input id="blockingElevation" type="number" step="0.001" min="0"></label>
+            <label>Stock length (ft)<select id="blockingStock"><option value="8">8 ft</option><option value="10" selected>10 ft</option><option value="12">12 ft</option><option value="16">16 ft</option></select></label>
+          </div>
+          <button id="removeBlockingRunBtn" class="button danger" type="button">Remove selected blocking</button>
+        </div>
+        <div class="blocking-editor-list"><h3>Blocking markups</h3><div id="blockingRunList"></div>
+          <div id="blockingMaterialStats" class="blocking-total"></div></div>
+      </div>
+      <small class="muted">Estimator only: clear cut lengths use stud on-center spacing minus the entered face width. Door-overlapping bays are excluded. Verify cabinet load, fasteners, jambs, stud orientation, local requirements, and approved backing details. Wood nominal sizes use actual heights.</small>
+      <div id="blockingStatus" class="muted" role="status"></div>
+      <div class="blocking-footer"><button id="saveBlockingBtn" class="button primary" type="button">SAVE BLOCKING</button><button id="cancelBlockingBtn" class="button" type="button">Cancel</button></div>
+    </div>
+  </div>
+  <script src="quantities.js?v=blocking-v300"></script>
+  <script src="door-sketch.js?v=blocking-v300"></script>
+  <script src="ceiling-grid.js?v=blocking-v300"></script>
+  <script src="drywall-ceiling.js?v=blocking-v300"></script>
+  <script src="pdf-report.js?v=blocking-v300"></script>
+  <script src="blocking-editor.js?v=blocking-v300"></script>
+  <script src="app.js?v=blocking-v300"></script>
 </body>
 </html>

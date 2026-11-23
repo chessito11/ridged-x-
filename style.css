@@ -1494,3 +1494,81 @@ body.drawing-light .empty-state { color: #5b6678; }
 body.drawing-light .empty-state strong { color: #233041; }
 .drawing-theme-button[aria-pressed="true"] { border-color: #5675a8; }
 .drawing-theme-button[aria-pressed="false"] { background: #e9eff8; border-color: #a9b8d0; color: #23384d; }
+
+/* v2.9.4 — SCROLL mode for large DXF drawings, including native fullscreen. */
+.viewer-options-panel, .topbar .more-menu-panel {
+  max-height: min(75dvh, 540px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+#scrollModeBtn.active-tool, #fsScrollModeBtn.active-tool {
+  background: #315b75 !important;
+  color: #f1fbff !important;
+  border-color: #80d3ff !important;
+  box-shadow: inset 0 0 0 1px #80d3ff55;
+}
+.drawing-scroll-pad[hidden] { display: none !important; }
+.drawing-scroll-pad {
+  position: absolute;
+  z-index: 16;
+  bottom: 13px;
+  left: 13px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 7px;
+  border: 1px solid #6f8ca5aa;
+  border-radius: 11px;
+  background: #111c2bdf;
+  box-shadow: 0 5px 18px #0008;
+  user-select: none;
+  touch-action: manipulation;
+}
+.drawing-scroll-pad button {
+  width: 37px;
+  height: 34px;
+  min-height: 34px;
+  border: 1px solid #7093b5;
+  border-radius: 6px;
+  color: #d9f2ff;
+  background: #243c52;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 800;
+  touch-action: manipulation;
+}
+.drawing-scroll-pad button:active { background: #41749b; }
+.drawing-scroll-pad-middle { display: flex; align-items: center; gap: 4px; }
+.drawing-scroll-pad-middle span { min-width: 36px; text-align: center; color: #a7cde7; font-size: 9px; font-weight: 800; }
+@media(max-width:540px) {
+  .drawing-scroll-pad { bottom: 6px; left: 6px; gap: 2px; padding: 5px; }
+  .drawing-scroll-pad button { width: 33px; height: 31px; min-height: 31px; }
+  .drawing-scroll-pad-middle span { min-width: 28px; font-size: 8px; }
+}
+
+/* ATLAS v3.0: Between-stud Blocking Editor */
+.blocking-open-button{background:#704928;color:#fff0da;border-color:#bb8552;font-weight:750;width:100%}
+.blocking-editor-card{width:min(1160px,calc(100vw - 20px));max-height:calc(100dvh - 20px);overflow:auto;background:#182331;color:#eaf2f9;border:1px solid #516176;border-radius:12px;padding:16px;box-shadow:0 20px 70px #000b}
+.blocking-editor-header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:6px}
+.blocking-editor-header h2{margin:0 0 3px}
+.blocking-tip{font-size:12px;margin:6px 0 10px}
+.blocking-canvas-wrap{width:100%;min-height:260px;background:#101c29;overflow:hidden;border:1px solid #3a526a;border-radius:9px}
+#blockingCanvas{display:block;width:100%;height:clamp(270px,40vh,440px);touch-action:none;cursor:grab}
+#blockingCanvas:active{cursor:grabbing}
+.blocking-settings-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:end;padding:10px 0}
+.blocking-settings-bar label{flex-direction:row;align-items:center;gap:6px}
+.blocking-settings-bar label input[type=number]{max-width:90px}
+.blocking-settings-bar label.blocking-check input{width:auto}
+.blocking-editor-bottom{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,.8fr);gap:12px;margin-bottom:10px}
+.blocking-editor-bottom h3{font-size:14px;margin:2px 0 9px}
+.blocking-editor-fields,.blocking-editor-list{background:#202d3d;border:1px solid #3a5268;border-radius:8px;padding:12px;min-width:0}
+.blocking-editor-fields[hidden]{display:none}
+.blocking-fields-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-bottom:10px}
+.blocking-run-item{display:block;width:100%;padding:9px;text-align:left;background:#1a2634;color:#e4edf5;border:1px solid #364b60;border-radius:6px;margin-bottom:6px;cursor:pointer;font:12px system-ui;overflow-wrap:anywhere}
+.blocking-run-item.selected{background:#634423;color:#fff2dc;border-color:#e5b16e}
+.blocking-total{display:grid;gap:4px;font-size:12px;margin-top:10px;line-height:1.5}
+.blocking-warning{color:#ffd18e}
+.blocking-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+@media(max-width:720px){.blocking-editor-card{padding:9px}.blocking-editor-bottom{grid-template-columns:1fr}.blocking-fields-grid{grid-template-columns:1fr 1fr}#blockingCanvas{height:300px}.blocking-settings-bar{gap:8px}}

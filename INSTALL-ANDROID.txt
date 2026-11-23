@@ -1,3 +1,5 @@
+ATLAS Estimating v3.0 — CABINET BLOCKING ELEVATION (ANDROID)
+
 ATLAS Estimating v2.9.2 — Android fullscreen update
 
 1. In ATLAS, use OPTIONS > Download Project Backup for each important job before updating.
@@ -11,3 +13,8 @@ When the browser denies native fullscreen, the program still offers its previous
 The fix changes only fullscreen handling and the Android cache version. Existing tape, ceiling, wall, dark/light, and PDF functions remain in the package.
 
 V2.9.3 CHANGE: Saved ceiling badges now show NUMBER over calculated AREA SF.
+
+V2.9.4: Open VIEW > SCROLL ON (or full-screen SCROLL). Mouse wheel/trackpad now pans the plan; use Ctrl+wheel/pinch to zoom. On Android, use finger drag or the directional scroll pad. SCROLL OFF returns to normal markups.
+
+
+NEW: Select and save a wall, then open BLOCKING ELEVATION. Wood blocking is installed between studs, with drag, resize, dimension input, cut-piece estimates, saved project backups and PDF material reports. Upload blocking-editor.js with all other files. See README-BLOCKING-v3.0.md.
