@@ -1590,3 +1590,7 @@ body.drawing-light .empty-state strong { color: #233041; }
  .blocking-settings-bar #placeBlockingEndsBtn{min-height:43px}
  .blocking-settings-bar #addBlockingRunBtn{min-height:43px}
 }
+
+/* v3.3: smart architectural dimension fields. */
+.blocking-editor-fields input[id^="blocking"]:is([id="blockingStart"],[id="blockingLength"],[id="blockingElevation"]){min-width:0;font-variant-numeric:tabular-nums;}
+.blocking-settings-bar #blockingUnits{max-width:240px;}

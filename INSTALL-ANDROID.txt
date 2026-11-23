@@ -23,4 +23,6 @@ V3.1 UPDATE — Blocking elevation field dimensions:
 - In BLOCKING ELEVATION, choose feet or inches and a Bottom/Center/Top AFF reference.
 - Press TAP START → END, tap the starting position/height, then tap the ending position.
 - Selected blocking displays length, left offset, and vertical AFF from finished floor.
-- For details read README-BLOCKING-v3.1.md.
+- For details read README-BLOCKING-v3.2.md.
+
+V3.2: Blocking dimensions display only when you tap a blocking row on the elevation or in the markup list. Tap again (or empty space) to hide.

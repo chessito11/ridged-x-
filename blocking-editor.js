@@ -1,4 +1,4 @@
-/* ATLAS Blocking Editor v3.1 – clickable blocking placement and live dimensions.
+/* ATLAS Blocking Editor v3.3 – smart imperial dimensions and tap-to-show blocking dimensions.
    Works offline; uses the saved wall's actual length, height, spacing and openings.
    A run is a horizontal BLOCKING ZONE: each stud bay yields its own cut piece.
    Internal elevFt stays at the bottom AFF for backward compatibility. Display reference is configurable. */
@@ -17,17 +17,61 @@ function ftIn(feet){
   return `${feet<0?'-':''}${ft}′-${inches}${frac}″`;
 }
 const AFF_REFS={bottom:'BOTTOM',center:'CENTER',top:'TOP'};
-const UNITS_KEY='atlasBlockingUnitsV31';
-let displayUnit='ft',pendingAffReference='bottom';
+const UNITS_KEY='atlasBlockingUnitsV33';
+let displayUnit='smart',pendingAffReference='bottom';
 function inchesValue(feet){
  const v=Math.round(Math.abs(feet)*12*16),whole=Math.floor(v/16),rem=v%16;
  const gcd=(a,b)=>b?gcd(b,a%b):a;
  return `${feet<0?'-':''}${whole}${rem?` ${rem/gcd(rem,16)}/${16/gcd(rem,16)}`:''}″`;
 }
 const showDim=feet=>displayUnit==='in'?inchesValue(feet):ftIn(feet);
-const showNumber=feet=>(feet*(displayUnit==='in'?12:1)).toFixed(displayUnit==='in'?2:3).replace(/\.?0+$/,'');
+// Smart dimension input accepts 10'6", 10'-6 1/2", 6 3/4", 126 1/2", or 10'.
+// No foot mark means inches, matching how field dimensions are typically entered.
+// Explicit decimal feet/inches remain available for older workflows.
+function parseImperial(text){
+ if(typeof text!=='string')return NaN;
+ let s=text.trim().replace(/[′’‘]/g,"'").replace(/[″“”]/g,'"').toLowerCase();
+ if(!s || /[^0-9.'"/\s\-a-z]/.test(s))return NaN;
+ s=s.replace(/\bfeet\b|\bfoot\b|ft\b/g,"'").replace(/\binches\b|\binch\b|in\b/g,'"');
+ if(/[a-z]/.test(s))return NaN;
+ // Separators between feet and inches, not negative distances.
+ s=s.replace(/(\d)\s*'\s*-\s*/g,"$1' ").trim();
+ if(s.startsWith('-'))return NaN;
+ const feetMatches=[...s.matchAll(/'/g)];
+ if(feetMatches.length>1)return NaN;
+ let ft=0,inchText=s;
+ if(feetMatches.length){
+  const at=feetMatches[0].index,ftText=s.slice(0,at).trim();
+  if(!/^\d+(?:\.\d+)?$/.test(ftText))return NaN;
+  ft=Number(ftText);inchText=s.slice(at+1).trim();
+ }
+ if((inchText.match(/"/g)||[]).length>1)return NaN;
+ if(inchText.includes('"')){
+  if(!inchText.endsWith('"'))return NaN;
+  inchText=inchText.slice(0,-1).trim();
+ }
+ let inches=0;
+ if(inchText){
+  const parts=inchText.split(/\s+/).filter(Boolean);
+  if(parts.length>2)return NaN;
+  const fraction=parts.find(x=>x.includes('/'));
+  const whole=parts.find(x=>!x.includes('/'));
+  if(fraction){
+   const match=fraction.match(/^(\d+)\/(\d+)$/);
+   if(!match || +match[2]===0 || +match[1]>=+match[2])return NaN;
+   inches+=+match[1]/+match[2];
+  }
+  if(whole){if(!/^\d+(?:\.\d+)?$/.test(whole))return NaN;inches+=Number(whole);}
+  if(!fraction&&!whole)return NaN;
+  if(parts.length===2&&(!fraction||!whole))return NaN;
+ }
+ if(!Number.isFinite(inches)||!Number.isFinite(ft))return NaN;
+ return ft+inches/12;
+}
+const showNumber=feet=>displayUnit==='smart'?ftIn(feet):(feet*(displayUnit==='in'?12:1)).toFixed(displayUnit==='in'?3:4).replace(/\.?0+$/,'');
 const parseNumber=text=>{
  if(typeof text!=='string'||!text.trim())return NaN;
+ if(displayUnit==='smart')return parseImperial(text);
  const value=Number(text.trim());
  return Number.isFinite(value)&&value>=0?value/(displayUnit==='in'?12:1):NaN;
 };
@@ -105,7 +149,7 @@ function summarize(walls){
  }
  return {groups:[...m.values()],pieces,lf,excluded};
 }
-let host=null,wallId=null,wall=null,draft=[],face=1.5,selected=null,dirty=false,gesture=null,layout=null,placement=null,placementTouch=null;
+let host=null,wallId=null,wall=null,draft=[],face=1.5,selected=null,dimensionsVisible=false,dirty=false,gesture=null,layout=null,placement=null,placementTouch=null;
 const clone=o=>JSON.parse(JSON.stringify(o));
 const genId=()=>`B-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
 function bind(handlers){host=handlers;
@@ -117,10 +161,10 @@ function bind(handlers){host=handlers;
   if(draft.length>=100){alert('This wall has reached 100 blocking zones.');return;}
   const size='2x6',h=SIZES[size]/12;
   const run={id:genId(),label:nextLabel(),size,startFt:0,lengthFt:Math.min(8,number(wall.lengthFt)),elevFt:clamp(4,0,Math.max(0,number(wall.height)-h)),stockFt:10,affReference:pendingAffReference};
-  draft.push(run);selected=run.id;dirty=true;placement=null;updatePlaceButton();render();
+  draft.push(run);selected=run.id;dimensionsVisible=false;dirty=true;placement=null;updatePlaceButton();render();
  });
  $('removeBlockingRunBtn').addEventListener('click',()=>{
-  if(!selected)return;draft=draft.filter(r=>r.id!==selected);selected=draft[0]?.id??null;dirty=true;cancelPlacement();
+  if(!selected)return;draft=draft.filter(r=>r.id!==selected);selected=null;dimensionsVisible=false;dirty=true;cancelPlacement();
  });
  $('blockingStudFace').addEventListener('input',()=>{face=clamp(number($('blockingStudFace').value,1.5),0,4);dirty=true;render(false);});
  $('placeBlockingEndsBtn').addEventListener('click',()=>{
@@ -130,7 +174,7 @@ function bind(handlers){host=handlers;
   gesture=null;placementTouch=null;placement={stage:'first',first:null,preview:null};updatePlaceButton();render();
  });
  $('blockingUnits').addEventListener('change',()=>{
-  displayUnit=$('blockingUnits').value==='in'?'in':'ft';
+  displayUnit=['smart','ft','in'].includes($('blockingUnits').value)?$('blockingUnits').value:'smart';
   try{root.localStorage.setItem(UNITS_KEY,displayUnit);}catch(_){/* storage optional */}
   render();
  });
@@ -147,7 +191,7 @@ function bind(handlers){host=handlers;
    else if(key==='stockFt')r[key]=number(raw);
    else{
     const ft=parseNumber(raw);
-    if(!Number.isFinite(ft)){alert('Enter a non-negative number in the selected unit.');render();return;}
+    if(!Number.isFinite(ft)){alert(displayUnit==='smart'?"Enter a valid dimension, for example 10'6 1/2\" or 6 3/4\".":'Enter a non-negative number in the selected unit.');render();return;}
     if(key==='elevFt')r.elevFt=ft-refOffset(r);
     else r[key]=ft;
    }
@@ -164,28 +208,30 @@ function open(id){
  if(!host)return;const found=host.getWall(id);
  if(!found){alert('Save a wall first, then select it and open BLOCKING ELEVATION.');return;}
  wallId=id;wall=found;draft=clone(Array.isArray(wall.blockingRuns)?wall.blockingRuns:[]).map(x=>cleanRun(x,wall)).filter(Boolean);
- face=clamp(number(wall.blockingFaceIn,1.5),0,4);selected=draft[0]?.id??null;pendingAffReference=affReference(draft[0]);dirty=false;gesture=null;placement=null;placementTouch=null;
- try{displayUnit=root.localStorage.getItem(UNITS_KEY)==='in'?'in':'ft';}catch(_){displayUnit='ft';}
+ face=clamp(number(wall.blockingFaceIn,1.5),0,4);selected=null;dimensionsVisible=false;pendingAffReference=affReference(draft[0]);dirty=false;gesture=null;placement=null;placementTouch=null;
+ try{const stored=root.localStorage.getItem(UNITS_KEY);displayUnit=['smart','ft','in'].includes(stored)?stored:'smart';}catch(_){displayUnit='smart';}
  $('blockingDialog').classList.remove('hidden');$('blockingWallName').textContent=`${wall.wallNumber} · ${ftIn(wall.lengthFt)} × ${ftIn(wall.height)} · ${wall.spacing}″ O.C.`;
  $('blockingStudFace').value=face;$('blockingUnits').value=displayUnit;updatePlaceButton();render();
 }
 function close(){if(!wall)return;if(dirty&&!confirm('Discard the unsaved blocking changes?'))return;
- $('blockingDialog').classList.add('hidden');wall=null;wallId=null;gesture=null;placement=null;placementTouch=null;dirty=false;
+ $('blockingDialog').classList.add('hidden');wall=null;wallId=null;selected=null;dimensionsVisible=false;gesture=null;placement=null;placementTouch=null;dirty=false;
 }
 function save(){if(!wall||!host)return;
  const runs=draft.map(r=>cleanRun(r,wall)).filter(Boolean);
  if(runs.length!==draft.length){alert('One or more blocking runs have invalid dimensions. Please correct or remove them.');return;}
- host.commit(wallId,runs,face);dirty=false;$('blockingDialog').classList.add('hidden');wall=null;wallId=null;gesture=null;placement=null;placementTouch=null;
+ host.commit(wallId,runs,face);dirty=false;$('blockingDialog').classList.add('hidden');wall=null;wallId=null;selected=null;dimensionsVisible=false;gesture=null;placement=null;placementTouch=null;
 }
 function selectedRun(){return draft.find(x=>x.id===selected)||null;}
 function render(refreshInputs=true){if(!wall)return;
  const r=selectedRun();$('blockingFields').hidden=!r;$('removeBlockingRunBtn').disabled=!r;
  $('blockingUnits').value=displayUnit;
  for(const id of ['blockingStart','blockingLength','blockingElevation']){
-  const el=$(id);const label=el.closest('label');if(label){const unit=displayUnit==='in'?'in':'ft';
+  const el=$(id);const label=el.closest('label');if(label){const unit=displayUnit==='smart'?'ft / in / fraction':displayUnit==='in'?'in':'ft';
    const title=id==='blockingStart'?'Start from wall left':id==='blockingLength'?'Zone length':`${AFF_REFS[affReference(r||{affReference:pendingAffReference})]} elevation AFF`;
    label.firstChild.textContent=`${title} (${unit})`;
   }
+  el.placeholder=displayUnit==='smart'?id==='blockingElevation'?`e.g. 4' 0\"`:`e.g. 10'6 1/2\"`:displayUnit==='in'?'inches':'decimal feet';
+  el.inputMode=displayUnit==='smart'?'text':'decimal';
  }
  if(refreshInputs){
   $('blockingStudFace').value=face;
@@ -198,21 +244,27 @@ function render(refreshInputs=true){if(!wall)return;
  if(!r)$('blockingAffReference').value=pendingAffReference;
  const result=compute(wall,{runs:draft,faceIn:face});const list=$('blockingRunList');list.replaceChildren();
  for(const run of result.runs){const row=document.createElement('button');row.type='button';row.className='blocking-run-item'+(run.id===selected?' selected':'');
-  row.textContent=`${run.label||'BLOCK'} · ${run.size} · ${showDim(run.lengthFt)} zone · ${affString(run,showDim)} · ${run.cutPieces} cuts`;
-  row.addEventListener('click',()=>{selected=run.id;pendingAffReference=affReference(run);render();});list.appendChild(row);
+  row.textContent=`${run.label||'BLOCK'} · ${run.size} · ${run.cutPieces} cuts`;
+  row.setAttribute('aria-pressed',String(run.id===selected&&dimensionsVisible));
+  row.title='Tap to show/hide dimensions on the elevation';
+  row.addEventListener('click',()=>{
+   if(selected===run.id&&dimensionsVisible){selected=null;dimensionsVisible=false;}
+   else{selected=run.id;dimensionsVisible=true;pendingAffReference=affReference(run);}
+   render();
+  });list.appendChild(row);
  }
  const summary=$('blockingMaterialStats');summary.replaceChildren();
  const intro=document.createElement('div');intro.textContent=`${result.totalPieces} between-stud pieces · ${result.installedLF.toFixed(2)} installed LF`;summary.appendChild(intro);
  for(const t of result.groups){const line=document.createElement('div');line.textContent=`${t.size}: ${t.pieces} cut pieces · ${t.installedLF.toFixed(2)} LF · approx. ${t.stockMinimum} × ${t.stockFt}′ stock (before waste)`;summary.appendChild(line);}
  if(result.omittedDoorBays){const warn=document.createElement('div');warn.className='blocking-warning';warn.textContent=`${result.omittedDoorBays} bay location(s) overlap door openings and were excluded. Verify jamb-adjacent blocking separately.`;summary.appendChild(warn);}
- $('blockingStatus').textContent=placement?(placement.stage==='first'?'Placement: tap the START point (including its AFF height) on the elevation.':'Placement: tap the END point. The second tap sets horizontal length; AFF stays at your first tap.'):(dirty?'Unsaved changes — press SAVE BLOCKING to keep them.':'Changes are saved only when you press SAVE BLOCKING.');
+ $('blockingStatus').textContent=placement?(placement.stage==='first'?'Placement: tap the START point (including its AFF height) on the elevation.':'Placement: tap the END point. The second tap sets horizontal length; AFF stays at your first tap.'):(dirty?'Unsaved changes — press SAVE BLOCKING to keep them. Tap a blocking row to show dimensions.':'Tap a blocking row or markup to show length and TOP / CENTER / BOTTOM AFF; tap again or empty space to hide.');
  updatePlaceButton();paint();
 }
 function coord(evt){const rect=$('blockingCanvas').getBoundingClientRect();return {x:(evt.clientX-rect.left),y:(evt.clientY-rect.top)};}
-function hitTest(p){if(!layout)return null;const {left,top,sx,sy,H}=layout;
+function hitTest(p){if(!layout)return null;const {left,top,sx,sy}=layout;
  for(const r of [...draft].reverse()){
   const start=left+r.startFt*sx,end=left+(r.startFt+r.lengthFt)*sx;
-  const cy=top+(H-r.elevFt-SIZES[r.size]/12)*sy;
+  const cy=top+(number(wall.height)-r.elevFt-SIZES[r.size]/12)*sy;
   const ht=Math.max(7,SIZES[r.size]/12*sy);
   if(p.y<cy-11||p.y>cy+ht+11||p.x<start-12||p.x>end+12)continue;
   const kind=Math.abs(p.x-start)<13?'left':Math.abs(p.x-end)<13?'right':'move';return {id:r.id,kind};
@@ -233,13 +285,21 @@ function finishPlacement(p){
  const candidate={id:genId(),label:nextLabel(),size,affReference:reference,startFt:start,lengthFt:length,elevFt:first.aff-(reference==='top'?SIZES[size]/12:reference==='center'?SIZES[size]/24:0),stockFt:style?.stockFt||10};
  const clean=cleanRun(candidate,wall);
  if(!clean){$('blockingStatus').textContent='This blocking run does not fit the wall. Select two other points.';return;}
- draft.push(clean);selected=clean.id;placement=null;placementTouch=null;dirty=true;render();
+ draft.push(clean);selected=clean.id;dimensionsVisible=false;placement=null;placementTouch=null;dirty=true;render();
 }
 function onDown(evt){if(!wall||evt.button>0)return;
  const point=coord(evt);
  if(placement){placementTouch={pointerId:evt.pointerId,down:point,moved:false};$('blockingCanvas').setPointerCapture(evt.pointerId);evt.preventDefault();return;}
- const h=hitTest(point);if(!h)return;
- const r=draft.find(r=>r.id===h.id);selected=h.id;pendingAffReference=affReference(r);gesture={pointerId:evt.pointerId,kind:h.kind,start:point,origin:clone(r)};
+ const h=hitTest(point);
+ if(!h){
+  // Tapping blank elevation space closes the dimension callout without changing saved blocking.
+  if(selected!==null||dimensionsVisible){selected=null;dimensionsVisible=false;render();}
+  return;
+ }
+ const wasShown=dimensionsVisible&&selected===h.id;
+ const r=draft.find(r=>r.id===h.id);
+ selected=h.id;dimensionsVisible=true;pendingAffReference=affReference(r);
+ gesture={pointerId:evt.pointerId,kind:h.kind,start:point,origin:clone(r),moved:false,wasShown};
  $('blockingCanvas').setPointerCapture(evt.pointerId);render();evt.preventDefault();
 }
 function onMove(evt){if(!wall||!layout)return;
@@ -249,7 +309,12 @@ function onMove(evt){if(!wall||!layout)return;
   return;
  }
  if(!gesture||evt.pointerId!==gesture.pointerId)return;
- const r=selectedRun();if(!r)return;const p=coord(evt),dx=(p.x-gesture.start.x)/layout.sx,dy=(p.y-gesture.start.y)/layout.sy;
+ const r=selectedRun();if(!r)return;
+ const p=coord(evt);
+ // Treat tiny fingertip movement as a tap, not a change in blocking material.
+ if(!gesture.moved&&Math.hypot(p.x-gesture.start.x,p.y-gesture.start.y)<5)return;
+ gesture.moved=true;
+ const dx=(p.x-gesture.start.x)/layout.sx,dy=(p.y-gesture.start.y)/layout.sy;
  const max=number(wall.lengthFt),height=number(wall.height),o=gesture.origin;
  if(gesture.kind==='left'){
   let x=clamp(o.startFt+dx,0,o.startFt+o.lengthFt-.1);if($('blockingSnap').checked)x=nearestStud(x);
@@ -267,7 +332,14 @@ function onUp(evt){
  if(placementTouch&&evt.pointerId===placementTouch.pointerId){const touch=placementTouch;placementTouch=null;
   if(evt.type!=='pointercancel'&&!touch.moved&&placement)finishPlacement(coord(evt));return;
  }
- if(gesture&&gesture.pointerId===evt.pointerId){gesture=null;render();}
+ if(gesture&&gesture.pointerId===evt.pointerId){
+  const last=gesture;gesture=null;
+  // A second tap on the same row hides dimensions. Dragging still edits the run.
+  if(evt.type!=='pointercancel'&&!last.moved&&last.wasShown&&last.kind==='move'){
+   selected=null;dimensionsVisible=false;
+  }
+  render();
+ }
 }
 function lineDimension(ctx,x1,y1,x2,y2,label,color='#b7e4ff'){
  ctx.save();ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=1.2;ctx.setLineDash([]);
@@ -309,7 +381,7 @@ function paint(){if(!wall)return;
   const label=r.label||'BLOCK';if(width>55){ctx.textAlign='center';ctx.textBaseline='bottom';ctx.font='bold 11px system-ui';ctx.strokeStyle='#121e2c';ctx.lineWidth=3;ctx.strokeText(label,x+width/2,y-3);ctx.fillStyle='#ffd39e';ctx.fillText(label,x+width/2,y-3);}
  }
  // Dimension annotations are linked to the selected blocking zone, in actual wall feet.
- const active=selectedRun();if(active){
+ const active=dimensionsVisible?selectedRun():null;if(active){
   const x0=left+active.startFt*sx,x1=left+(active.startFt+active.lengthFt)*sx;
   const blockHeight=SIZES[active.size]/12;
   const yTop=top+(number(wall.height)-active.elevFt-blockHeight)*sy;
