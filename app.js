@@ -1973,6 +1973,7 @@
         const tr = document.createElement("tr");
         tr.dataset.segmentId = String(w.segmentId);
         if (w.segmentId === state.selectedId) tr.classList.add("selected-markup");
+        const savedBlockingCount = Array.isArray(w.blockingRuns) ? w.blockingRuns.length : 0;
 
         tr.innerHTML = `
           <td><strong>${escapeHtml(w.wallNumber)}</strong></td>
@@ -1982,7 +1983,7 @@
           <td>${escapeHtml(w.studSize)} ${escapeHtml(w.gauge)}</td>
           <td>${w.studQty}</td>
           <td class="markup-actions">
-            <button class="markup-blocking" type="button" title="Edit cabinet blocking elevation">Blocking</button>
+            <button class="markup-blocking${savedBlockingCount ? " has-blocking" : ""}" type="button" title="${savedBlockingCount ? `${savedBlockingCount} saved blocking run${savedBlockingCount === 1 ? "" : "s"} — tap to edit` : "Add cabinet blocking to this wall"}" aria-label="${savedBlockingCount ? `Blocking: ${savedBlockingCount} saved runs` : "Blocking: none saved"}">Blocking${savedBlockingCount ? ` (${savedBlockingCount})` : ""}</button>
             <button class="markup-locate" type="button" title="Center wall in viewer">Find</button>
             <button class="markup-delete" type="button" title="Delete wall">Delete</button>
           </td>`;

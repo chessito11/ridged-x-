@@ -1594,3 +1594,17 @@ body.drawing-light .empty-state strong { color: #233041; }
 /* v3.3: smart architectural dimension fields. */
 .blocking-editor-fields input[id^="blocking"]:is([id="blockingStart"],[id="blockingLength"],[id="blockingElevation"]){min-width:0;font-variant-numeric:tabular-nums;}
 .blocking-settings-bar #blockingUnits{max-width:240px;}
+
+/* v3.4 — Green blocking action identifies walls that already have saved backing. */
+#wallTable .markup-actions button.markup-blocking.has-blocking {
+  background: #176a40;
+  border: 1px solid #58d68b;
+  color: #f0fff5;
+  font-weight: 750;
+  box-shadow: inset 0 0 0 1px rgba(114, 239, 163, 0.15);
+}
+#wallTable .markup-actions button.markup-blocking.has-blocking:hover,
+#wallTable .markup-actions button.markup-blocking.has-blocking:focus-visible {
+  background: #218453;
+  border-color: #9bffbc;
+}
