@@ -18,6 +18,8 @@ function ftIn(feet){
 }
 const AFF_REFS={bottom:'BOTTOM',center:'CENTER',top:'TOP'};
 const UNITS_KEY='atlasBlockingUnitsV33';
+const PATTERNS_KEY='atlasBlockingPatternsV35';
+const PATTERN_MAX=6;
 let displayUnit='smart',pendingAffReference='bottom';
 function inchesValue(feet){
  const v=Math.round(Math.abs(feet)*12*16),whole=Math.floor(v/16),rem=v%16;
@@ -152,7 +154,72 @@ function summarize(walls){
 let host=null,wallId=null,wall=null,draft=[],face=1.5,selected=null,dimensionsVisible=false,dirty=false,gesture=null,layout=null,placement=null,placementTouch=null;
 const clone=o=>JSON.parse(JSON.stringify(o));
 const genId=()=>`B-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+// Pattern slots hold reusable blocking zones; instances receive fresh IDs and labels.
+// The slot library lives in device-local storage and is independent of project backups.
+let patterns=Array(PATTERN_MAX).fill(null);
+function readPatterns(){
+ try{const raw=JSON.parse(root.localStorage.getItem(PATTERNS_KEY)||'null');
+  patterns=Array.from({length:PATTERN_MAX},(_,i)=>{
+   const item=Array.isArray(raw)?raw[i]:null;
+   if(!item||!Array.isArray(item.runs))return null;
+   return {name:String(item.name||`Pattern ${i+1}`).slice(0,48),faceIn:clamp(number(item.faceIn,1.5),0,4),runs:item.runs.slice(0,100).filter(r=>r&&typeof r==='object').map(r=>({label:String(r.label||'').slice(0,32),size:r.size,startFt:Number(r.startFt),lengthFt:Number(r.lengthFt),elevFt:Number(r.elevFt),affReference:affReference(r),stockFt:number(r.stockFt,10)}))};
+  });
+ }catch(_){patterns=Array(PATTERN_MAX).fill(null);}
+}
+function persistPatterns(){try{root.localStorage.setItem(PATTERNS_KEY,JSON.stringify(patterns));return true;}catch(_){alert('Cannot save patterns on this device. Check available browser storage.');return false;}}
+function activePatternSlot(){return clamp(Number($('blockingPatternSlot').value)||0,0,PATTERN_MAX-1);}
+function updatePatternControls(){
+ const slot=$('blockingPatternSlot'),current=String(activePatternSlot());slot.replaceChildren();
+ for(let i=0;i<PATTERN_MAX;i++){
+  const opt=document.createElement('option');opt.value=String(i);
+  opt.textContent=`${i+1}. ${patterns[i]?patterns[i].name+' ('+patterns[i].runs.length+' runs)':'Empty slot'}`;
+  slot.appendChild(opt);
+ }
+ slot.value=current;
+ const item=patterns[activePatternSlot()];
+ $('blockingPatternName').value=item?.name||'';
+ $('blockingPatternApply').disabled=!item;
+ $('blockingPatternDelete').disabled=!item;
+ $('blockingPatternStatus').textContent=item?`Slot ${activePatternSlot()+1}: ${item.runs.length} blocking run(s). Apply to copy the layout; edit any run after applying. Saving to this slot overwrites its template.`:'This slot is empty. Arrange blocking on the wall and press SAVE / UPDATE SLOT.';
+}
+function bindPatternControls(){
+ $('blockingPatternSlot').addEventListener('change',updatePatternControls);
+ $('blockingPatternSave').addEventListener('click',()=>{
+  if(!wall)return;
+  if(!draft.length){alert('Add blocking runs to the wall before saving a pattern.');return;}
+  const i=activePatternSlot(),old=patterns[i],name=$('blockingPatternName').value.trim()||`Pattern ${i+1}`;
+  if(old&&!confirm(`Overwrite saved pattern "${old.name}" in slot ${i+1}?`))return;
+  const runs=draft.map(r=>cleanRun(r,wall)).filter(Boolean);
+  if(runs.length!==draft.length){alert('Correct invalid blocking runs before saving a pattern.');return;}
+  const item={name:name.slice(0,48),faceIn:face,runs:runs.map(({label,size,startFt,lengthFt,elevFt,affReference,stockFt})=>({label,size,startFt,lengthFt,elevFt,affReference,stockFt}))};
+  patterns[i]=item;if(!persistPatterns()){patterns[i]=old;return;}
+  updatePatternControls();$('blockingPatternStatus').textContent=`Saved "${name}" to slot ${i+1}. You can apply it to another wall.`;
+ });
+ $('blockingPatternApply').addEventListener('click',()=>{
+  if(!wall)return;
+  const item=patterns[activePatternSlot()];if(!item)return;
+  const append=$('blockingPatternAppend').checked;
+  if(!append&&draft.length&&!confirm('Replace this wall’s unsaved blocking layout with the selected pattern? Existing wall runs will be replaced only when you press SAVE BLOCKING.'))return;
+  if(append&&draft.length+item.runs.length>100){alert('A wall can contain at most 100 blocking zones.');return;}
+  const incoming=item.runs.map(r=>cleanRun({...r,id:genId()},wall)).filter(r=>r&&r.lengthFt>EPS);
+  if(!incoming.length){alert('None of this pattern’s blocking fits on the selected wall. Check wall length and height.');return;}
+  if(incoming.length<item.runs.length)alert('Some pattern runs do not fit this wall and were omitted. Check the elevation.');
+  if(append)draft.push(...incoming);else draft=incoming;
+  // Assign unique labels so repeated patterns never duplicate B-001 etc.
+  let idx=append?Math.max(0,...draft.slice(0,-incoming.length).map(r=>Number(String(r.label||'').match(/^B-(\d+)$/)?.[1])||0)):0;
+  incoming.forEach(r=>{r.label=`B-${String(++idx).padStart(3,'0')}`;});
+  face=item.faceIn;selected=null;dimensionsVisible=false;gesture=null;placement=null;dirty=true;
+  updatePlaceButton();render();
+  $('blockingPatternStatus').textContent=`Applied "${item.name}" to wall ${wall.wallNumber}. Adjust the new runs, then SAVE BLOCKING. The saved pattern stays unchanged.`;
+ });
+ $('blockingPatternDelete').addEventListener('click',()=>{
+  const i=activePatternSlot(),item=patterns[i];if(!item)return;
+  if(!confirm(`Delete pattern "${item.name}" from slot ${i+1}? Blocking already saved to walls will not change.`))return;
+  patterns[i]=null;if(!persistPatterns()){patterns[i]=item;return;}updatePatternControls();
+ });
+}
 function bind(handlers){host=handlers;
+ bindPatternControls();
  $('openBlockingBtn').addEventListener('click',()=>open(handlers.currentWallId()));
  $('closeBlockingBtn').addEventListener('click',close);
  $('cancelBlockingBtn').addEventListener('click',close);
@@ -211,6 +278,7 @@ function open(id){
  face=clamp(number(wall.blockingFaceIn,1.5),0,4);selected=null;dimensionsVisible=false;pendingAffReference=affReference(draft[0]);dirty=false;gesture=null;placement=null;placementTouch=null;
  try{const stored=root.localStorage.getItem(UNITS_KEY);displayUnit=['smart','ft','in'].includes(stored)?stored:'smart';}catch(_){displayUnit='smart';}
  $('blockingDialog').classList.remove('hidden');$('blockingWallName').textContent=`${wall.wallNumber} · ${ftIn(wall.lengthFt)} × ${ftIn(wall.height)} · ${wall.spacing}″ O.C.`;
+ readPatterns();$('blockingPatternSlot').value='0';updatePatternControls();
  $('blockingStudFace').value=face;$('blockingUnits').value=displayUnit;updatePlaceButton();render();
 }
 function close(){if(!wall)return;if(dirty&&!confirm('Discard the unsaved blocking changes?'))return;

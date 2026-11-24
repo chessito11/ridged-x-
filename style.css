@@ -1608,3 +1608,17 @@ body.drawing-light .empty-state strong { color: #233041; }
   background: #218453;
   border-color: #9bffbc;
 }
+
+/* v3.5 reusable blocking patterns */
+.blocking-pattern-library{border:1px solid #456276;border-radius:9px;background:rgba(49,82,107,.22);padding:11px;margin:2px 0 13px}
+.blocking-pattern-heading{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:9px}
+.blocking-pattern-heading small{color:#b1c6d7}
+.blocking-pattern-row{display:flex;flex-wrap:wrap;align-items:end;gap:10px}
+.blocking-pattern-row label{display:flex;flex-direction:column;gap:5px;min-width:175px;flex:1}
+.blocking-pattern-row label:first-child{flex:0 1 240px}
+.blocking-pattern-row .blocking-pattern-check{flex:1 1 220px;flex-direction:row;align-items:center}
+.blocking-pattern-row .blocking-pattern-check input{width:auto}
+.blocking-pattern-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 6px}
+.blocking-pattern-actions .button{min-height:40px}
+#blockingPatternStatus{display:block;line-height:1.45}
+@media(max-width:600px){.blocking-pattern-row label,.blocking-pattern-row label:first-child{flex:1 1 100%;min-width:0}.blocking-pattern-actions .button{flex:1 1 45%}}

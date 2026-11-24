@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#17191d" />
   <title>ATLAS Takeoff</title>
-  <link rel="stylesheet" href="style.css?v=green-v34-blocking-v330" />
+  <link rel="stylesheet" href="style.css?v=patterns-v35" />
 </head>
 <body class="panels-hidden">
   <header class="topbar">
@@ -618,6 +618,20 @@
         <button id="placeBlockingEndsBtn" class="button" type="button" aria-pressed="false">📍 TAP START → END</button>
         <button id="addBlockingRunBtn" class="button primary" type="button">+ ADD BLOCKING</button>
       </div>
+      <section class="blocking-pattern-library" aria-label="Reusable blocking patterns">
+        <div class="blocking-pattern-heading"><strong>REUSABLE BLOCKING PATTERNS</strong><small>Save up to 6 patterns and reuse them on other walls.</small></div>
+        <div class="blocking-pattern-row">
+          <label>Pattern slot <select id="blockingPatternSlot" aria-label="Choose blocking pattern slot"></select></label>
+          <label>Pattern name <input id="blockingPatternName" type="text" maxlength="48" placeholder="e.g. Kitchen upper cabinets"></label>
+          <label class="blocking-pattern-check"><input id="blockingPatternAppend" type="checkbox"> Keep existing wall blocking (add pattern)</label>
+        </div>
+        <div class="blocking-pattern-actions">
+          <button class="button" id="blockingPatternApply" type="button">↪ APPLY PATTERN</button>
+          <button class="button" id="blockingPatternSave" type="button">★ SAVE / UPDATE SLOT</button>
+          <button class="button danger" id="blockingPatternDelete" type="button">DELETE SLOT</button>
+        </div>
+        <small class="muted" id="blockingPatternStatus">Patterns are stored on this device. Saved patterns can be applied to other walls and their blocking runs edited independently.</small>
+      </section>
       <div class="blocking-editor-bottom">
         <div class="blocking-editor-fields" id="blockingFields" hidden>
           <h3>Selected blocking zone</h3>
@@ -639,12 +653,12 @@
       <div class="blocking-footer"><button id="saveBlockingBtn" class="button primary" type="button">SAVE BLOCKING</button><button id="cancelBlockingBtn" class="button" type="button">Cancel</button></div>
     </div>
   </div>
-  <script src="quantities.js?v=blocking-v330"></script>
-  <script src="door-sketch.js?v=blocking-v330"></script>
-  <script src="ceiling-grid.js?v=blocking-v330"></script>
-  <script src="drywall-ceiling.js?v=blocking-v330"></script>
-  <script src="pdf-report.js?v=blocking-v330"></script>
-  <script src="blocking-editor.js?v=blocking-v330"></script>
-  <script src="app.js?v=green-v34-blocking-v330"></script>
+  <script src="quantities.js?v=blocking-v350"></script>
+  <script src="door-sketch.js?v=blocking-v350"></script>
+  <script src="ceiling-grid.js?v=blocking-v350"></script>
+  <script src="drywall-ceiling.js?v=blocking-v350"></script>
+  <script src="pdf-report.js?v=blocking-v350"></script>
+  <script src="blocking-editor.js?v=blocking-v350"></script>
+  <script src="app.js?v=patterns-v35"></script>
 </body>
 </html>
